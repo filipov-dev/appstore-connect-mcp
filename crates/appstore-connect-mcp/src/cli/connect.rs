@@ -1,0 +1,948 @@
+//! `appstore-connect-mcp connect` — подключение сервера к MCP-клиенту одной командой.
+//!
+//! Сценарий: ключ профиля (сохранённый рабочий ключ используется как есть; иначе —
+//! страница ключей App Store Connect с подсказкой, путь к `.p8`, Key ID, Issuer ID,
+//! проверка `GET /v1/apps?limit=1`, ключ в системное хранилище) → настройки доступа в
+//! `profiles.toml` → запись сервера в конфигурацию клиента после подтверждения → в конце,
+//! один раз, предложение удалить исходный файл ключа.
+//!
+//! Ключ не проходит через агента и не попадает ни в аргументы, ни в конфигурацию клиента:
+//! клиент получает только команду `appstore-connect-mcp serve --profile <профиль> ...`.
+
+use std::path::PathBuf;
+
+use anyhow::{Context, bail};
+use appstore_connect_api::ApiKey;
+use appstore_connect_api::auth::{AuthError, KeyStore, KeyringStore};
+use appstore_connect_api::spec::{find_toolset, toolsets};
+use clap::Args;
+
+use super::ProfileArg;
+use crate::browser::{BrowserDecision, BrowserEnv, SkipReason, decide};
+use crate::clients::claude::{self, CommandRunner, SystemRunner};
+use crate::clients::{
+    ClientKind, Scope, ServerSpec, codex, default_server_name, long_name_warning,
+};
+use crate::login::{
+    KeyInput, offer_to_delete_key_file, remember_key, resolve_issuer, resolve_stored_key_id,
+    store_new_key,
+};
+use crate::profiles::{
+    ProfileRepo, ProfileSettings, validate_profile_name, validate_vendor_number,
+};
+use crate::ui::{TerminalUi, Ui};
+use crate::verify::{ApiVerifier, KeyVerifier};
+
+/// Страница ключей App Store Connect API (Users and Access → Integrations).
+pub const API_KEYS_URL: &str = "https://appstoreconnect.apple.com/access/integrations/api";
+
+const CONNECT_HELP: &str = "\
+The server reads the API key from the system keychain by profile name. If the profile has no \
+stored key yet, connect opens the App Store Connect API keys page (Users and Access > \
+Integrations > App Store Connect API), explains how to create a key and asks for the .p8 file, \
+the Key ID (default: from the file name AuthKey_<KEYID>.p8) and the Issuer ID. The key is \
+checked with GET /v1/apps?limit=1 and stored only in the keychain. If the profile already has \
+a working key, it is reused: re-running connect only changes the settings and the client \
+registration. Pass --key-file to replace the stored key.
+
+The client config gets only the command `appstore-connect-mcp serve --profile <profile> ...` \
+with the access flags; never the key. The settings are also saved in the profile.
+
+One profile is one App Store Connect account. The server name in the client is \
+appstore-connect for the default profile and asc-<profile> for others, so that tool names \
+mcp__<server>__<tool> stay within the 64-character limit of clients.
+
+Links open in the default browser; over SSH, without a graphical session or with --no-browser \
+they are only printed.";
+
+#[derive(Debug, Clone, Args)]
+#[command(after_help = CONNECT_HELP)]
+pub struct ConnectArgs {
+    /// MCP client to register the server in.
+    #[arg(value_enum)]
+    pub client: ClientKind,
+    #[command(flatten)]
+    pub profile: ProfileArg,
+    /// MCP server name in the client config. Default: appstore-connect for the default
+    /// profile, asc-<profile> for others.
+    #[arg(long, value_name = "NAME")]
+    pub name: Option<String>,
+    /// Where to register the server in the client. Codex supports only `user`.
+    #[arg(long, value_enum, default_value_t = Scope::User)]
+    pub scope: Scope,
+    /// Path to the API key file downloaded from App Store Connect (AuthKey_<KEYID>.p8).
+    /// Replaces the stored key of the profile.
+    #[arg(long, value_name = "PATH")]
+    pub key_file: Option<PathBuf>,
+    /// Key ID of the key. Default: the KEYID part of the file name AuthKey_<KEYID>.p8, or
+    /// the one saved in the profile.
+    #[arg(long, value_name = "ID")]
+    pub key_id: Option<String>,
+    /// Issuer ID of a team key (Users and Access > Integrations > App Store Connect API).
+    /// Default: the one saved in the profile.
+    #[arg(long, value_name = "UUID", conflicts_with = "individual")]
+    pub issuer_id: Option<String>,
+    /// The key is an individual key (no Issuer ID).
+    #[arg(long)]
+    pub individual: bool,
+    /// Vendor number for sales and finance reports (Payments and Financial Reports).
+    #[arg(long, value_name = "NUMBER")]
+    pub vendor_number: Option<String>,
+    /// Allow tools that create or modify data in App Store Connect.
+    #[arg(long)]
+    pub allow_write: bool,
+    /// Allow tools with irreversible or user-visible effects: deletions, submissions for
+    /// review, releases, prices, users and roles (implies --allow-write).
+    #[arg(long)]
+    pub allow_destructive: bool,
+    /// Comma-separated toolsets to enable (passed to `serve --toolsets`). Default: the
+    /// default set of `serve`.
+    #[arg(long, value_delimiter = ',', value_name = "TOOLSET,...")]
+    pub toolsets: Vec<String>,
+    /// Register the server without --dynamic-toolsets: all enabled tools are listed at
+    /// start instead of being loaded by the agent on demand.
+    #[arg(long)]
+    pub no_dynamic_toolsets: bool,
+    /// Do not ask for confirmation before changing the client config.
+    ///
+    /// An entry with the same name that runs another server or another profile is never
+    /// replaced with --yes.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+    /// Do not check the key against the App Store Connect API.
+    #[arg(long)]
+    pub no_verify: bool,
+    /// Do not open links in a browser; only print them.
+    #[arg(long)]
+    pub no_browser: bool,
+}
+
+impl ConnectArgs {
+    fn key_input(&self) -> KeyInput<'_> {
+        KeyInput {
+            key_file: self.key_file.as_deref(),
+            key_id: self.key_id.as_deref(),
+            issuer_id: self.issuer_id.as_deref(),
+            individual: self.individual,
+        }
+    }
+}
+
+pub async fn run(args: ConnectArgs) -> anyhow::Result<()> {
+    let exe =
+        std::env::current_exe().context("cannot determine the path of appstore-connect-mcp")?;
+    let codex_home = match args.client {
+        ClientKind::Codex => codex::default_codex_home()?,
+        ClientKind::ClaudeCode => PathBuf::new(),
+    };
+    let verifier = (!args.no_verify).then(ApiVerifier::new).transpose()?;
+    let mut env = ConnectEnv {
+        store: &KeyringStore,
+        repo: &ProfileRepo::open_default()?,
+        verifier: verifier.as_ref(),
+        runner: &mut SystemRunner,
+        ui: &mut TerminalUi,
+        exe,
+        codex_home,
+        browser: decide(args.no_browser, &BrowserEnv::current()),
+    };
+    connect(&mut env, &args).await
+}
+
+/// Зависимости `connect`; в тестах подменяются хранилищем в памяти и временными каталогами.
+pub struct ConnectEnv<'a, V> {
+    pub store: &'a dyn KeyStore,
+    pub repo: &'a ProfileRepo,
+    /// Проверка ключа; `None` — `--no-verify`.
+    pub verifier: Option<&'a V>,
+    pub runner: &'a mut dyn CommandRunner,
+    pub ui: &'a mut dyn Ui,
+    pub exe: PathBuf,
+    pub codex_home: PathBuf,
+    /// Открывать ли ссылки в браузере (решается в `run` по флагу и окружению).
+    pub browser: BrowserDecision,
+}
+
+/// Наборы инструментов из флага: без пустых и повторов. Пока генератор операций не
+/// заполнил таблицу наборов, проверяется только вид slug; потом — что набор существует.
+fn normalize_toolsets(values: &[String]) -> anyhow::Result<Vec<String>> {
+    let mut result: Vec<String> = Vec::new();
+    for value in values {
+        let slug = value.trim();
+        if slug.is_empty() || result.iter().any(|known| known == slug) {
+            continue;
+        }
+        let valid_chars = slug
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '_' | '-'));
+        if !valid_chars {
+            bail!("invalid toolset `{slug}`: use lowercase letters, digits, `_` and `-`");
+        }
+        if !toolsets().is_empty() && find_toolset(slug).is_none() {
+            let known: Vec<&str> = toolsets().iter().map(|toolset| toolset.slug).collect();
+            bail!("unknown toolset `{slug}`; available: {}", known.join(", "));
+        }
+        result.push(slug.to_owned());
+    }
+    Ok(result)
+}
+
+pub async fn connect<V: KeyVerifier>(
+    env: &mut ConnectEnv<'_, V>,
+    args: &ConnectArgs,
+) -> anyhow::Result<()> {
+    let client = args.client;
+    let profile = args.profile.profile.as_str();
+    validate_profile_name(profile)?;
+
+    // Всё, что можно проверить без вопросов, — до первого вопроса пользователю.
+    let input = args.key_input();
+    input.validate()?;
+    let vendor_number = args
+        .vendor_number
+        .as_deref()
+        .map(validate_vendor_number)
+        .transpose()?;
+    let toolsets = normalize_toolsets(&args.toolsets)?;
+    let name = args
+        .name
+        .clone()
+        .unwrap_or_else(|| default_server_name(profile));
+    let access = ProfileSettings {
+        allow_write: args.allow_write,
+        allow_destructive: args.allow_destructive,
+        ..Default::default()
+    }
+    .normalized();
+    let dynamic_toolsets = !args.no_dynamic_toolsets;
+    let spec = ServerSpec::new(
+        &name,
+        &env.exe,
+        profile,
+        &ProfileSettings {
+            toolsets: toolsets.clone(),
+            dynamic_toolsets,
+            ..access.clone()
+        },
+    )?;
+    let mut settings = env.repo.get(profile)?.unwrap_or_default();
+    match client {
+        ClientKind::ClaudeCode => claude::ensure_available(env.runner)?,
+        ClientKind::Codex => codex::ensure_scope(args.scope)?,
+    }
+    if let Some(warning) = long_name_warning(&name) {
+        env.ui.say(&warning);
+    }
+
+    let new_key_file = profile_key(env, &input, profile, &mut settings).await?;
+
+    if vendor_number.is_some() {
+        settings.vendor_number = vendor_number;
+    }
+    settings.client = Some(client.name().to_owned());
+    settings.allow_write = access.allow_write;
+    settings.allow_destructive = access.allow_destructive;
+    settings.toolsets = toolsets;
+    settings.dynamic_toolsets = dynamic_toolsets;
+    env.repo.upsert(profile, settings)?;
+    env.ui.say(&format!(
+        "Profile `{profile}` saved to {}.",
+        env.repo.path().display()
+    ));
+
+    let registered = match client {
+        ClientKind::ClaudeCode => {
+            claude::register(env.runner, env.ui, args.scope, &spec, args.yes)?
+        }
+        ClientKind::Codex => codex::register(env.ui, &env.codex_home, &spec, args.yes)?,
+    };
+    if registered {
+        env.ui.say(&format!(
+            "Done: {} now runs `{}` as MCP server `{}`. Restart the client to pick it up.",
+            client.display_name(),
+            spec.display(),
+            spec.name
+        ));
+    } else {
+        env.ui.say(&format!(
+            "{} config was not changed. The key and the profile are kept; re-run \
+             `appstore-connect-mcp connect {} --profile {profile}` to register later.",
+            client.display_name(),
+            client.name()
+        ));
+    }
+
+    // Один раз за запуск и только для файла, прочитанного в этом запуске.
+    if let Some(file) = new_key_file {
+        offer_to_delete_key_file(env.ui, &file);
+    }
+    Ok(())
+}
+
+/// Ключ профиля: рабочий сохранённый используется как есть, иначе принимается новый.
+/// Записывает Key ID и тип ключа в `settings`. Возвращает путь к файлу нового ключа, если
+/// ключ был прочитан из файла в этом запуске.
+async fn profile_key<V: KeyVerifier>(
+    env: &mut ConnectEnv<'_, V>,
+    input: &KeyInput<'_>,
+    profile: &str,
+    settings: &mut ProfileSettings,
+) -> anyhow::Result<Option<PathBuf>> {
+    let stored = match env.store.get(profile) {
+        Ok(pem) => Some(pem),
+        Err(AuthError::NotFound { .. }) => None,
+        Err(AuthError::Corrupted { .. }) => {
+            env.ui.say(&format!(
+                "The value stored for profile `{profile}` is not a valid API key; a new key is \
+                 needed."
+            ));
+            None
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    match (stored, input.key_file) {
+        (Some(_), Some(_)) => env.ui.say(&format!(
+            "Profile `{profile}` already has an API key in the system keychain; it will be \
+             replaced with the key from --key-file."
+        )),
+        (Some(pem), None) => {
+            let key_id = resolve_stored_key_id(env.ui, input, settings)?;
+            let issuer = resolve_issuer(env.ui, input, settings)?;
+            let key = ApiKey::new(&pem, key_id, issuer)?;
+            env.ui.say(&format!(
+                "Profile `{profile}` already has an API key in the system keychain (Key ID {}).",
+                key.key_id().as_str()
+            ));
+            match env.verifier {
+                None => {
+                    env.ui
+                        .say("Keeping the stored key (not checked: --no-verify).");
+                    remember_key(settings, &key);
+                    return Ok(None);
+                }
+                Some(verifier) => match verifier.check(&key).await {
+                    Ok(outcome) => {
+                        env.ui
+                            .say(&format!("The stored key works: {outcome}. Keeping it."));
+                        remember_key(settings, &key);
+                        return Ok(None);
+                    }
+                    Err(err) => env.ui.say(&format!(
+                        "The stored key does not work ({err:#}); a new key is needed."
+                    )),
+                },
+            }
+        }
+        (None, _) => {}
+    }
+
+    if input.key_file.is_none() {
+        if !env.ui.is_interactive() {
+            bail!(
+                "profile `{profile}` has no working API key; pass --key-file \
+                 <AuthKey_XXXXXXXXXX.p8> (create a key at {API_KEYS_URL})"
+            );
+        }
+        show_key_instructions(env.ui, env.browser);
+    }
+    let new_key = store_new_key(env.store, env.verifier, env.ui, profile, input, settings).await?;
+    remember_key(settings, &new_key.key);
+    Ok(Some(new_key.file))
+}
+
+/// Подсказка, как создать ключ, и ссылка на страницу ключей (в браузере, если можно).
+fn show_key_instructions(ui: &mut dyn Ui, browser: BrowserDecision) {
+    ui.say(&format!(
+        "The profile needs an App Store Connect API key. Create a team key at\n  \
+         {API_KEYS_URL}\n\
+         (Users and Access > Integrations > App Store Connect API > Team Keys; the Account \
+         Holder has to request API access once):\n  \
+         1. Click Generate API Key (+), enter a name and choose the Admin role (recommended: \
+         other roles limit which tools work).\n  \
+         2. Download the .p8 file. App Store Connect lets you download it only once; keep a \
+         backup.\n  \
+         3. Note the Key ID (next to the key) and the Issuer ID (above the list of keys).\n\
+         An individual key (created on your user profile in Users and Access) also works: \
+         leave the Issuer ID empty or pass --individual."
+    ));
+    match browser {
+        BrowserDecision::Open => match ui.open_url(API_KEYS_URL) {
+            Ok(()) => ui.say("Opened the page in your browser."),
+            Err(err) => ui.say(&format!(
+                "Could not open a browser ({err}); open the link above yourself."
+            )),
+        },
+        BrowserDecision::Skip(SkipReason::Ssh) => {
+            ui.say("SSH session: open the link above in a browser on your computer.");
+        }
+        BrowserDecision::Skip(SkipReason::NoDisplay) => {
+            ui.say("No graphical session: open the link above in a browser.");
+        }
+        BrowserDecision::Skip(SkipReason::Flag) => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::Path;
+
+    use appstore_connect_api::PrivateKeyPem;
+    use appstore_connect_api::auth::MemoryStore;
+
+    use super::*;
+    use crate::clients::TEST_EXE;
+    use crate::clients::claude::testing::FakeRunner;
+    use crate::profiles::DEFAULT_PROFILE;
+    use crate::testing::generated_key_pem;
+    use crate::ui::testing::ScriptedUi;
+    use crate::verify::testing::FakeVerifier;
+
+    const KEY_ID: &str = "TESTKEY123";
+    const ISSUER: &str = "01234567-89ab-cdef-0123-456789abcdef";
+
+    struct Fixture {
+        dir: tempfile::TempDir,
+        store: MemoryStore,
+        repo: ProfileRepo,
+        verifier: FakeVerifier,
+        no_verify: bool,
+        runner: FakeRunner,
+        ui: ScriptedUi,
+        codex_home: PathBuf,
+        browser: BrowserDecision,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let dir = tempfile::tempdir().unwrap();
+            Self {
+                store: MemoryStore::new(),
+                repo: ProfileRepo::in_dir(dir.path().join("config")),
+                verifier: FakeVerifier {
+                    valid_key_id: KEY_ID.into(),
+                },
+                no_verify: false,
+                runner: FakeRunner::default(),
+                ui: ScriptedUi::default(),
+                codex_home: dir.path().join("codex"),
+                browser: BrowserDecision::Skip(SkipReason::Flag),
+                dir,
+            }
+        }
+
+        /// Терминал с ответами `values`.
+        fn answers(&mut self, values: &[&str]) {
+            self.ui = ScriptedUi::answering(values);
+        }
+
+        /// Файл ключа `name` со сгенерированным ключом; возвращает путь и PEM.
+        fn key_file(&self, name: &str) -> (PathBuf, String) {
+            let pem = generated_key_pem();
+            let path = self.dir.path().join(name);
+            fs::write(&path, &pem).unwrap();
+            (path, pem)
+        }
+
+        /// Профиль с уже сохранённым ключом (как после `auth login`).
+        fn with_stored_key(self, profile: &str) -> Self {
+            self.store
+                .set(
+                    profile,
+                    &PrivateKeyPem::parse(&generated_key_pem()).unwrap(),
+                )
+                .unwrap();
+            self.repo
+                .upsert(
+                    profile,
+                    ProfileSettings {
+                        key_id: Some(KEY_ID.into()),
+                        issuer_id: Some(ISSUER.into()),
+                        vendor_number: Some("80000001".into()),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+            self
+        }
+
+        async fn connect(&mut self, args: &ConnectArgs) -> anyhow::Result<()> {
+            let mut env = ConnectEnv {
+                store: &self.store,
+                repo: &self.repo,
+                verifier: (!self.no_verify).then_some(&self.verifier),
+                runner: &mut self.runner,
+                ui: &mut self.ui,
+                exe: PathBuf::from(TEST_EXE),
+                codex_home: self.codex_home.clone(),
+                browser: self.browser,
+            };
+            connect(&mut env, args).await
+        }
+
+        fn codex_config(&self) -> Option<String> {
+            fs::read_to_string(codex::config_path(&self.codex_home)).ok()
+        }
+
+        fn settings(&self, profile: &str) -> ProfileSettings {
+            self.repo.get(profile).unwrap().unwrap()
+        }
+    }
+
+    fn args(client: ClientKind) -> ConnectArgs {
+        ConnectArgs {
+            client,
+            profile: ProfileArg {
+                profile: DEFAULT_PROFILE.into(),
+            },
+            name: None,
+            scope: Scope::User,
+            key_file: None,
+            key_id: None,
+            issuer_id: None,
+            individual: false,
+            vendor_number: None,
+            allow_write: false,
+            allow_destructive: false,
+            toolsets: Vec::new(),
+            no_dynamic_toolsets: false,
+            yes: false,
+            no_verify: false,
+            no_browser: false,
+        }
+    }
+
+    /// Аргументы `serve` в TOML-записи Codex.
+    fn toml_args(args: &[&str]) -> String {
+        format!("args = {args:?}")
+    }
+
+    fn with_key_file(mut args: ConnectArgs, path: &Path) -> ConnectArgs {
+        args.key_file = Some(path.to_path_buf());
+        args
+    }
+
+    #[tokio::test]
+    async fn first_codex_run_opens_the_keys_page_and_stores_key_and_config() {
+        let mut fx = Fixture::new();
+        fx.browser = BrowserDecision::Open;
+        let (key_file, pem) = fx.key_file("AuthKey_TESTKEY123.p8");
+        let quoted = format!("'{}'", key_file.display());
+        // Путь к ключу, Issuer ID, запись конфига — да, удалить файл — нет.
+        fx.answers(&[&quoted, ISSUER, "y", "n"]);
+        let mut args = args(ClientKind::Codex);
+        args.allow_write = true;
+        args.toolsets = vec!["apps".into(), " ".into(), "apps".into()];
+        args.vendor_number = Some("80000002".into());
+
+        fx.connect(&args).await.unwrap();
+
+        assert_eq!(fx.ui.opened, [API_KEYS_URL]);
+        assert_eq!(fx.store.get(DEFAULT_PROFILE).unwrap().expose(), pem);
+        let settings = fx.settings(DEFAULT_PROFILE);
+        assert_eq!(settings.key_id.as_deref(), Some(KEY_ID));
+        assert_eq!(settings.issuer_id.as_deref(), Some(ISSUER));
+        assert_eq!(settings.vendor_number.as_deref(), Some("80000002"));
+        assert_eq!(settings.client.as_deref(), Some("codex"));
+        assert!(settings.allow_write);
+        assert!(!settings.allow_destructive);
+        assert_eq!(settings.toolsets, ["apps"]);
+        assert!(settings.dynamic_toolsets);
+
+        let config = fx.codex_config().unwrap();
+        assert!(
+            config.contains("[mcp_servers.appstore-connect]"),
+            "{config}"
+        );
+        assert!(
+            config.contains(&toml_args(&[
+                "serve",
+                "--profile",
+                "default",
+                "--allow-write",
+                "--toolsets",
+                "apps",
+                "--dynamic-toolsets"
+            ])),
+            "{config}"
+        );
+        assert_eq!(
+            fx.ui.questions.len(),
+            4,
+            "the key file deletion is offered once: {:?}",
+            fx.ui.questions
+        );
+        assert!(fx.ui.questions[3].contains("Delete the key file"));
+        assert_eq!(
+            fx.ui
+                .questions
+                .iter()
+                .filter(|q| q.contains("Delete the key file"))
+                .count(),
+            1
+        );
+        assert!(key_file.exists());
+        let output = fx.ui.text();
+        assert!(output.contains("Admin role"), "{output}");
+        assert!(
+            output.contains("Key ID: TESTKEY123 (from the file name)"),
+            "{output}"
+        );
+        assert!(output.contains("Key is valid"), "{output}");
+        // Ключ не выводится и не попадает ни в конфиг клиента, ни в профили.
+        let secret_line = pem.lines().nth(1).unwrap();
+        assert!(!output.contains(secret_line));
+        assert!(!config.contains(secret_line));
+        assert!(!config.contains("PRIVATE KEY"));
+        let profiles = fs::read_to_string(fx.repo.path()).unwrap();
+        assert!(!profiles.contains("PRIVATE KEY"), "{profiles}");
+        assert!(fx.runner.calls.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rerun_reuses_working_key_and_changes_only_settings() {
+        let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
+        let before = fx.store.get(DEFAULT_PROFILE).unwrap();
+        fx.answers(&["y"]);
+        let mut args = args(ClientKind::Codex);
+        args.allow_destructive = true;
+        args.no_dynamic_toolsets = true;
+        fx.connect(&args).await.unwrap();
+
+        // Ни пути к ключу, ни удаления файла: только запись конфига.
+        assert_eq!(fx.ui.questions, ["Write the Codex config?"]);
+        assert!(fx.ui.opened.is_empty());
+        let text = fx.ui.text();
+        assert!(text.contains("already has an API key"), "{text}");
+        assert!(text.contains("The stored key works"), "{text}");
+        assert_eq!(fx.store.get(DEFAULT_PROFILE).unwrap(), before);
+        let settings = fx.settings(DEFAULT_PROFILE);
+        assert!(settings.allow_write);
+        assert!(settings.allow_destructive);
+        assert!(!settings.dynamic_toolsets);
+        // Несвязанные настройки профиля сохраняются.
+        assert_eq!(settings.vendor_number.as_deref(), Some("80000001"));
+        assert!(fx.codex_config().unwrap().contains(&toml_args(&[
+            "serve",
+            "--profile",
+            "default",
+            "--allow-write",
+            "--allow-destructive"
+        ])));
+
+        // Ещё раз с --yes: без вопросов, конфиг не меняется.
+        args.yes = true;
+        fx.ui = ScriptedUi::default();
+        fx.connect(&args).await.unwrap();
+        assert!(fx.ui.questions.is_empty());
+        assert!(
+            fx.ui.text().contains("already up to date"),
+            "{}",
+            fx.ui.text()
+        );
+    }
+
+    #[tokio::test]
+    async fn broken_stored_key_is_replaced() {
+        let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
+        // Профиль указывает на другой Key ID: проверка не проходит.
+        let mut settings = fx.settings(DEFAULT_PROFILE);
+        settings.key_id = Some("OTHERKEY99".into());
+        fx.repo.upsert(DEFAULT_PROFILE, settings).unwrap();
+
+        let (key_file, pem) = fx.key_file("AuthKey_TESTKEY123.p8");
+        fx.answers(&[&key_file.display().to_string(), "y", ""]);
+        fx.connect(&args(ClientKind::Codex)).await.unwrap();
+        let text = fx.ui.text();
+        assert!(text.contains("does not work"), "{text}");
+        assert!(text.contains("API key replaced"), "{text}");
+        assert_eq!(fx.store.get(DEFAULT_PROFILE).unwrap().expose(), pem);
+        assert_eq!(fx.settings(DEFAULT_PROFILE).key_id.as_deref(), Some(KEY_ID));
+        // Issuer ID — из профиля, файл ключа оставлен (ответ по умолчанию).
+        assert!(text.contains("(from the profile)"), "{text}");
+        assert!(key_file.exists());
+    }
+
+    #[tokio::test]
+    async fn key_file_flag_replaces_stored_key_without_questions() {
+        let mut fx = Fixture::new().with_stored_key("work");
+        let (key_file, pem) = fx.key_file("AuthKey_TESTKEY123.p8");
+        let mut args = with_key_file(args(ClientKind::Codex), &key_file);
+        args.profile.profile = "work".into();
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        assert!(fx.ui.questions.is_empty());
+        assert_eq!(fx.store.get("work").unwrap().expose(), pem);
+        // Без терминала файл ключа не трогается.
+        assert!(key_file.exists());
+        let config = fx.codex_config().unwrap();
+        assert!(config.contains("[mcp_servers.asc-work]"), "{config}");
+        assert!(
+            config.contains(&toml_args(&[
+                "serve",
+                "--profile",
+                "work",
+                "--dynamic-toolsets"
+            ])),
+            "{config}"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_interactive_run_without_key_explains_what_to_pass() {
+        let mut fx = Fixture::new();
+        let err = fx
+            .connect(&args(ClientKind::Codex))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("--key-file"), "{err}");
+        assert!(err.contains(API_KEYS_URL), "{err}");
+        assert!(fx.codex_config().is_none());
+        assert_eq!(fx.repo.get(DEFAULT_PROFILE).unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn invalid_key_is_not_stored_and_client_is_not_changed() {
+        let mut fx = Fixture::new();
+        let (key_file, _) = fx.key_file("AuthKey_WRONGKEY99.p8");
+        let mut args = with_key_file(args(ClientKind::Codex), &key_file);
+        args.issuer_id = Some(ISSUER.into());
+        args.yes = true;
+        let err = fx.connect(&args).await.unwrap_err().to_string();
+        assert!(err.contains("rejected the key"), "{err}");
+        assert!(err.contains("Nothing was stored"), "{err}");
+        assert!(!fx.store.contains(DEFAULT_PROFILE).unwrap());
+        assert!(fx.codex_config().is_none());
+        assert_eq!(fx.repo.get(DEFAULT_PROFILE).unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn no_verify_stores_unchecked_key() {
+        let mut fx = Fixture::new();
+        fx.no_verify = true;
+        let (key_file, _) = fx.key_file("AuthKey_WRONGKEY99.p8");
+        let mut args = with_key_file(args(ClientKind::Codex), &key_file);
+        args.individual = true;
+        args.no_verify = true;
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        assert!(fx.store.contains(DEFAULT_PROFILE).unwrap());
+        let settings = fx.settings(DEFAULT_PROFILE);
+        assert!(settings.individual);
+        assert_eq!(settings.key_id.as_deref(), Some("WRONGKEY99"));
+        assert!(fx.ui.text().contains("--no-verify"));
+    }
+
+    #[tokio::test]
+    async fn access_flag_combinations() {
+        let cases: [(bool, bool, &[&str]); 4] = [
+            (false, false, &[]),
+            (true, false, &["--allow-write"]),
+            (false, true, &["--allow-write", "--allow-destructive"]),
+            (true, true, &["--allow-write", "--allow-destructive"]),
+        ];
+        for (write, destructive, flags) in cases {
+            let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
+            let mut args = args(ClientKind::Codex);
+            args.allow_write = write;
+            args.allow_destructive = destructive;
+            args.yes = true;
+            fx.connect(&args).await.unwrap();
+
+            let settings = fx.settings(DEFAULT_PROFILE);
+            assert_eq!(settings.allow_write, write || destructive);
+            assert_eq!(settings.allow_destructive, destructive);
+
+            let mut expected = vec!["serve", "--profile", "default"];
+            expected.extend_from_slice(flags);
+            expected.push("--dynamic-toolsets");
+            let config = fx.codex_config().unwrap();
+            assert!(config.contains(&toml_args(&expected)), "{config}");
+        }
+    }
+
+    #[tokio::test]
+    async fn ssh_session_only_prints_the_link() {
+        let mut fx = Fixture::new();
+        fx.browser = BrowserDecision::Skip(SkipReason::Ssh);
+        let (key_file, _) = fx.key_file("AuthKey_TESTKEY123.p8");
+        fx.answers(&[&key_file.display().to_string(), "", "n"]);
+        let mut args = args(ClientKind::Codex);
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        assert!(fx.ui.opened.is_empty());
+        let text = fx.ui.text();
+        assert!(text.contains(API_KEYS_URL), "{text}");
+        assert!(text.contains("SSH session"), "{text}");
+        // Пустой Issuer ID — индивидуальный ключ.
+        assert!(fx.settings(DEFAULT_PROFILE).individual);
+    }
+
+    #[tokio::test]
+    async fn browser_failure_only_prints_the_link() {
+        let mut fx = Fixture::new();
+        fx.browser = BrowserDecision::Open;
+        let (key_file, _) = fx.key_file("AuthKey_TESTKEY123.p8");
+        fx.answers(&[&key_file.display().to_string(), ISSUER, "n"]);
+        fx.ui.open_fails = true;
+        let mut args = args(ClientKind::Codex);
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        let text = fx.ui.text();
+        assert!(text.contains("Could not open a browser"), "{text}");
+        assert!(fx.store.contains(DEFAULT_PROFILE).unwrap());
+    }
+
+    #[tokio::test]
+    async fn key_file_flag_does_not_open_the_browser() {
+        let mut fx = Fixture::new();
+        fx.browser = BrowserDecision::Open;
+        let (key_file, _) = fx.key_file("AuthKey_TESTKEY123.p8");
+        fx.answers(&[ISSUER, "y"]);
+        let mut args = with_key_file(args(ClientKind::Codex), &key_file);
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        assert!(fx.ui.opened.is_empty());
+        assert!(!fx.ui.text().contains(API_KEYS_URL));
+        // Удалить файл — да: он удаляется после регистрации.
+        assert!(!key_file.exists());
+        assert!(fx.ui.text().contains("Deleted"), "{}", fx.ui.text());
+    }
+
+    #[tokio::test]
+    async fn declined_config_write_keeps_key_and_profile() {
+        let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
+        fx.answers(&["n"]);
+        fx.connect(&args(ClientKind::Codex)).await.unwrap();
+        assert!(fx.codex_config().is_none());
+        assert!(fx.store.contains(DEFAULT_PROFILE).unwrap());
+        assert_eq!(
+            fx.settings(DEFAULT_PROFILE).client.as_deref(),
+            Some("codex")
+        );
+        assert!(fx.ui.text().contains("config was not changed"));
+    }
+
+    #[tokio::test]
+    async fn existing_codex_config_is_preserved() {
+        let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
+        fs::create_dir_all(&fx.codex_home).unwrap();
+        let existing =
+            "# my settings\nmodel = \"gpt-5\"\n\n[mcp_servers.other]\ncommand = \"npx\"  # keep\n";
+        fs::write(codex::config_path(&fx.codex_home), existing).unwrap();
+        let mut args = args(ClientKind::Codex);
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        let config = fx.codex_config().unwrap();
+        assert!(config.starts_with(existing), "{config}");
+        assert!(
+            config.contains("[mcp_servers.appstore-connect]"),
+            "{config}"
+        );
+    }
+
+    #[tokio::test]
+    async fn claude_flow_with_custom_name_and_project_scope() {
+        let mut fx = Fixture::new().with_stored_key("work");
+        fx.answers(&["y"]);
+        let mut args = args(ClientKind::ClaudeCode);
+        args.profile.profile = "work".into();
+        args.scope = Scope::Project;
+        args.name = Some("asc-team".into());
+        fx.connect(&args).await.unwrap();
+
+        assert_eq!(
+            fx.runner.calls,
+            [
+                vec!["--version".to_owned()],
+                claude::add_args(
+                    Scope::Project,
+                    &ServerSpec {
+                        name: "asc-team".into(),
+                        profile: "work".into(),
+                        command: TEST_EXE.into(),
+                        args: vec![
+                            "serve".into(),
+                            "--profile".into(),
+                            "work".into(),
+                            "--dynamic-toolsets".into()
+                        ],
+                    }
+                )
+            ]
+        );
+        assert_eq!(fx.settings("work").client.as_deref(), Some("claude-code"));
+        assert!(fx.codex_config().is_none());
+    }
+
+    #[tokio::test]
+    async fn long_server_name_is_warned_about() {
+        let mut fx = Fixture::new().with_stored_key("production-account");
+        let mut args = args(ClientKind::ClaudeCode);
+        args.profile.profile = "production-account".into();
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        let text = fx.ui.text();
+        assert!(
+            text.contains("server name `asc-production-account` is longer than 17"),
+            "{text}"
+        );
+        assert!(fx.runner.calls.len() == 2, "{:?}", fx.runner.calls);
+    }
+
+    #[tokio::test]
+    async fn claude_missing_cli_fails_before_questions() {
+        let mut fx = Fixture::new();
+        fx.runner.results = [claude::CommandOutput {
+            success: false,
+            stderr: "broken".into(),
+            ..Default::default()
+        }]
+        .into();
+        let err = fx.connect(&args(ClientKind::ClaudeCode)).await.unwrap_err();
+        assert!(err.to_string().contains("broken"), "{err}");
+        assert!(fx.ui.output.is_empty());
+        assert!(fx.ui.questions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn invalid_input_fails_before_questions() {
+        let mut cases = Vec::new();
+        let mut codex_project = args(ClientKind::Codex);
+        codex_project.scope = Scope::Project;
+        cases.push((codex_project, "--scope user"));
+        let mut toolset = args(ClientKind::Codex);
+        toolset.toolsets = vec!["Bad Set".into()];
+        cases.push((toolset, "invalid toolset"));
+        let mut profile = args(ClientKind::Codex);
+        profile.profile.profile = "--evil".into();
+        cases.push((profile, "invalid profile name"));
+        let mut name = args(ClientKind::Codex);
+        name.name = Some("a b".into());
+        cases.push((name, "invalid server name"));
+        let mut long_profile = args(ClientKind::Codex);
+        long_profile.profile.profile = "x".repeat(64);
+        cases.push((long_profile, "--name"));
+        let mut key_id = args(ClientKind::Codex);
+        key_id.key_id = Some("bad id".into());
+        cases.push((key_id, "invalid Key ID"));
+        let mut issuer = args(ClientKind::Codex);
+        issuer.issuer_id = Some("nope".into());
+        cases.push((issuer, "invalid Issuer ID"));
+        let mut vendor = args(ClientKind::Codex);
+        vendor.vendor_number = Some("12ab".into());
+        cases.push((vendor, "invalid vendor number"));
+
+        for (args, expected) in cases {
+            let mut fx = Fixture::new();
+            fx.answers(&[]);
+            let err = fx.connect(&args).await.unwrap_err();
+            assert!(format!("{err:#}").contains(expected), "{expected}: {err:#}");
+            assert!(fx.ui.output.is_empty());
+            assert!(fx.ui.questions.is_empty());
+            assert_eq!(fx.repo.get(DEFAULT_PROFILE).unwrap(), None);
+        }
+    }
+}

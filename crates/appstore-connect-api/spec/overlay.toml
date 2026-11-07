@@ -1,0 +1,599 @@
+# Файл-дополнение к спецификации App Store Connect API (spec/openapi.oas.json).
+#
+# Здесь всё, чего нет в спецификации Apple: наборы инструментов, исключения из уровня
+# доступа, сокращения и явные имена инструментов, исключённые операции. Операции
+# называются по operationId спецификации. Ссылка на operationId, которого нет в
+# спецификации, тег спецификации без набора, повтор имени и имя длиннее 40 символов —
+# ошибка сборки (build.rs).
+#
+# Тексты description и reason — для агента, на английском.
+
+# ---------------------------------------------------------------------------
+# Наборы инструментов (--toolsets). Каждый первый тег операции спецификации входит
+# ровно в один набор. Набор — slug, описание и теги.
+# ---------------------------------------------------------------------------
+
+[[toolsets]]
+slug = "apps"
+description = "Apps: list and update apps, Android-to-iOS app mappings."
+tags = ["Apps", "AndroidToIosAppMappingDetails"]
+
+[[toolsets]]
+slug = "versions-review"
+description = "App Store versions and App Review: versions, review details and attachments, review submissions, export compliance, release and phased release."
+tags = [
+    "AppStoreVersions",
+    "AppStoreVersionSubmissions",
+    "AppStoreVersionReleaseRequests",
+    "AppStoreVersionPhasedReleases",
+    "AppStoreReviewDetails",
+    "AppStoreReviewAttachments",
+    "ReviewSubmissions",
+    "ReviewSubmissionItems",
+    "AppEncryptionDeclarations",
+    "AppEncryptionDeclarationDocuments",
+]
+
+[[toolsets]]
+slug = "metadata"
+description = "Store metadata: app info and version localizations (name, subtitle, description, keywords, what's new), categories, age rating, accessibility, EULA, routing coverage, tags."
+tags = [
+    "AppInfos",
+    "AppInfoLocalizations",
+    "AppStoreVersionLocalizations",
+    "AppCategories",
+    "AgeRatingDeclarations",
+    "AccessibilityDeclarations",
+    "EndUserLicenseAgreements",
+    "RoutingAppCoverages",
+    "AppTags",
+]
+
+[[toolsets]]
+slug = "media"
+description = "Screenshots and app previews (sets and uploads), app asset library images, videos and placements."
+tags = [
+    "AppScreenshotSets",
+    "AppScreenshots",
+    "AppPreviewSets",
+    "AppPreviews",
+    "AppAssetLibraries",
+    "AppAssetLibraryImages",
+    "AppAssetLibraryVideos",
+    "AppAssetLibraryPlacements",
+    "AppAssetLibraryPlacementOrderingRequests",
+    "AppAssetLibraryRefData",
+]
+
+[[toolsets]]
+slug = "builds"
+description = "Builds: list and inspect builds, build bundles, build uploads, diagnostic signatures and logs."
+tags = ["Builds", "BuildBundles", "BuildUploads", "BuildUploadFiles", "DiagnosticSignatures"]
+
+[[toolsets]]
+slug = "testflight"
+description = "TestFlight: beta groups, testers and invitations, beta app and build localizations, beta app review, pre-release versions, beta feedback and crash logs."
+tags = [
+    "BetaGroups",
+    "BetaTesters",
+    "BetaTesterInvitations",
+    "BetaAppLocalizations",
+    "BetaBuildLocalizations",
+    "BetaAppReviewDetails",
+    "BetaAppReviewSubmissions",
+    "BetaLicenseAgreements",
+    "BetaRecruitmentCriteria",
+    "BetaRecruitmentCriterionOptions",
+    "BetaFeedbackCrashSubmissions",
+    "BetaFeedbackScreenshotSubmissions",
+    "BetaCrashLogs",
+    "BuildBetaDetails",
+    "BuildBetaNotifications",
+    "PreReleaseVersions",
+]
+
+[[toolsets]]
+slug = "xcode-cloud"
+description = "Xcode Cloud: products, workflows, build runs and actions, artifacts, issues, test results, Xcode and macOS versions, source code repositories."
+tags = [
+    "CiProducts",
+    "CiWorkflows",
+    "CiBuildRuns",
+    "CiBuildActions",
+    "CiArtifacts",
+    "CiIssues",
+    "CiTestResults",
+    "CiXcodeVersions",
+    "CiMacOsVersions",
+    "ScmProviders",
+    "ScmRepositories",
+    "ScmGitReferences",
+    "ScmPullRequests",
+]
+
+[[toolsets]]
+slug = "iap"
+description = "In-app purchases: products, versions, localizations, images, review screenshots, availability, price schedules and price points, offer codes, submissions, promoted purchases."
+tags = [
+    "InAppPurchases",
+    "InAppPurchaseVersions",
+    "InAppPurchaseLocalizations",
+    "InAppPurchaseImages",
+    "InAppPurchaseAppStoreReviewScreenshots",
+    "InAppPurchaseContents",
+    "InAppPurchaseAvailabilities",
+    "InAppPurchasePriceSchedules",
+    "InAppPurchasePricePoints",
+    "InAppPurchaseOfferCodes",
+    "InAppPurchaseOfferCodeCustomCodes",
+    "InAppPurchaseOfferCodeOneTimeUseCodes",
+    "InAppPurchaseSubmissions",
+    "PromotedPurchases",
+]
+
+[[toolsets]]
+slug = "subscriptions"
+description = "Auto-renewable subscriptions: groups, subscriptions, versions, localizations, images, prices and price points, availability, introductory, promotional, offer-code and win-back offers, retention messages, grace periods, submissions."
+tags = [
+    "SubscriptionGroups",
+    "SubscriptionGroupVersions",
+    "SubscriptionGroupLocalizations",
+    "SubscriptionGroupSubmissions",
+    "Subscriptions",
+    "SubscriptionVersions",
+    "SubscriptionLocalizations",
+    "SubscriptionImages",
+    "SubscriptionAppStoreReviewScreenshots",
+    "SubscriptionAvailabilities",
+    "SubscriptionPlanAvailabilities",
+    "SubscriptionPrices",
+    "SubscriptionPricePoints",
+    "SubscriptionIntroductoryOffers",
+    "SubscriptionPromotionalOffers",
+    "SubscriptionOfferCodes",
+    "SubscriptionOfferCodeCustomCodes",
+    "SubscriptionOfferCodeOneTimeUseCodes",
+    "SubscriptionGracePeriods",
+    "SubscriptionSubmissions",
+    "WinBackOffers",
+    "RetentionMessages",
+    "RetentionMessageVersions",
+    "RetentionMessageLocalizations",
+    "RetentionOffers",
+]
+
+[[toolsets]]
+slug = "pricing-availability"
+description = "App pricing and availability: price schedules and price points, availability by territory, territories, ending pre-orders."
+tags = [
+    "AppPriceSchedules",
+    "AppPricePoints",
+    "AppAvailabilities",
+    "TerritoryAvailabilities",
+    "Territories",
+    "EndAppAvailabilityPreOrders",
+]
+
+[[toolsets]]
+slug = "reviews"
+description = "Customer reviews and public developer responses to them."
+tags = ["CustomerReviews", "CustomerReviewResponses"]
+
+[[toolsets]]
+slug = "analytics-reports"
+description = "Analytics report requests, reports, instances and segments; sales and finance reports (gzip files)."
+tags = [
+    "AnalyticsReportRequests",
+    "AnalyticsReports",
+    "AnalyticsReportInstances",
+    "AnalyticsReportSegments",
+    "SalesReports",
+    "FinanceReports",
+]
+
+[[toolsets]]
+slug = "provisioning"
+description = "Certificates, identifiers and profiles: bundle IDs and capabilities, certificates, devices, provisioning profiles, merchant IDs, pass type IDs."
+tags = ["BundleIds", "BundleIdCapabilities", "Certificates", "Devices", "Profiles", "MerchantIds", "PassTypeIds"]
+
+[[toolsets]]
+slug = "users"
+description = "Team users, their roles and visible apps, user invitations, actors."
+tags = ["Users", "UserInvitations", "Actors"]
+
+[[toolsets]]
+slug = "webhooks"
+description = "Webhooks: subscriptions to App Store Connect events, deliveries and test pings."
+tags = ["Webhooks", "WebhookDeliveries", "WebhookPings"]
+
+[[toolsets]]
+slug = "sandbox"
+description = "Sandbox testers: list and update testers, clear purchase history."
+tags = ["SandboxTesters", "SandboxTestersClearPurchaseHistoryRequest"]
+
+[[toolsets]]
+slug = "game-center"
+description = "Game Center: details, groups, achievements, leaderboards and leaderboard sets, activities, challenges, matchmaking, players and score moderation."
+tags = [
+    "GameCenterDetails",
+    "GameCenterDetailPlayers",
+    "GameCenterGroups",
+    "GameCenterAppVersions",
+    "GameCenterEnabledVersions",
+    "GameCenterAchievements",
+    "GameCenterAchievementVersions",
+    "GameCenterAchievementLocalizations",
+    "GameCenterAchievementImages",
+    "GameCenterAchievementReleases",
+    "GameCenterLeaderboards",
+    "GameCenterLeaderboardVersions",
+    "GameCenterLeaderboardLocalizations",
+    "GameCenterLeaderboardImages",
+    "GameCenterLeaderboardReleases",
+    "GameCenterLeaderboardSets",
+    "GameCenterLeaderboardSetVersions",
+    "GameCenterLeaderboardSetLocalizations",
+    "GameCenterLeaderboardSetMemberLocalizations",
+    "GameCenterLeaderboardSetImages",
+    "GameCenterLeaderboardSetReleases",
+    "GameCenterLeaderboardEntrySubmissions",
+    "GameCenterPlayerAchievementSubmissions",
+    "GameCenterScoreModerations",
+    "GameCenterActivities",
+    "GameCenterActivityVersions",
+    "GameCenterActivityLocalizations",
+    "GameCenterActivityImages",
+    "GameCenterActivityVersionReleases",
+    "GameCenterChallenges",
+    "GameCenterChallengeVersions",
+    "GameCenterChallengeLocalizations",
+    "GameCenterChallengeImages",
+    "GameCenterChallengeVersionReleases",
+    "GameCenterMatchmakingQueues",
+    "GameCenterMatchmakingRuleSets",
+    "GameCenterMatchmakingRuleSetTests",
+    "GameCenterMatchmakingRules",
+    "GameCenterMatchmakingTeams",
+]
+
+[[toolsets]]
+slug = "app-clips"
+description = "App Clips: default and advanced experiences, their localizations and header images, App Clip review details, beta invocations."
+tags = [
+    "AppClips",
+    "AppClipDefaultExperiences",
+    "AppClipDefaultExperienceLocalizations",
+    "AppClipAdvancedExperiences",
+    "AppClipAdvancedExperienceImages",
+    "AppClipHeaderImages",
+    "AppClipAppStoreReviewDetails",
+    "BetaAppClipInvocations",
+    "BetaAppClipInvocationLocalizations",
+]
+
+[[toolsets]]
+slug = "product-pages-events"
+description = "Custom product pages, product page optimization experiments and treatments, in-app events, featuring nominations."
+tags = [
+    "AppCustomProductPages",
+    "AppCustomProductPageVersions",
+    "AppCustomProductPageLocalizations",
+    "AppStoreVersionExperiments",
+    "AppStoreVersionExperimentTreatments",
+    "AppStoreVersionExperimentTreatmentLocalizations",
+    "AppStoreVersionPromotions",
+    "AppEvents",
+    "AppEventLocalizations",
+    "AppEventScreenshots",
+    "AppEventVideoClips",
+    "Nominations",
+]
+
+[[toolsets]]
+slug = "background-assets"
+description = "Background assets: assets, versions, upload files, internal and external beta and App Store releases."
+tags = [
+    "BackgroundAssets",
+    "BackgroundAssetVersions",
+    "BackgroundAssetUploadFiles",
+    "BackgroundAssetVersionInternalBetaReleases",
+    "BackgroundAssetVersionExternalBetaReleases",
+    "BackgroundAssetVersionAppStoreReleases",
+]
+
+[[toolsets]]
+slug = "alt-distribution"
+description = "Alternative distribution (EU): keys, domains, packages, versions, variants and deltas, marketplace search details and webhooks."
+tags = [
+    "AlternativeDistributionKeys",
+    "AlternativeDistributionDomains",
+    "AlternativeDistributionPackages",
+    "AlternativeDistributionPackageVersions",
+    "AlternativeDistributionPackageVariants",
+    "AlternativeDistributionPackageDeltas",
+    "MarketplaceSearchDetails",
+    "MarketplaceWebhooks",
+]
+
+# ---------------------------------------------------------------------------
+# Уровни доступа. По умолчанию: GET — read, POST/PATCH — write, DELETE — destructive,
+# DELETE …/relationships/… (удаление связи) — write (build/access.rs). Ниже — исключения;
+# они важнее обоих правил. Уровень destructive получают действия с последствиями для
+# пользователей App Store, людей вне команды или необратимые. Исключение, совпадающее
+# с уровнем по умолчанию, — ошибка сборки.
+# ---------------------------------------------------------------------------
+
+# Отправка на ревью (App Review, ревью TestFlight) и её отмена.
+[[access]]
+level = "destructive"
+reason = "submits content to App Review (or changes a submission)."
+operations = [
+    "reviewSubmissions_createInstance",
+    "reviewSubmissions_updateInstance",
+    "reviewSubmissionItems_createInstance",
+    "reviewSubmissionItems_updateInstance",
+    "betaAppReviewSubmissions_createInstance",
+    "inAppPurchaseSubmissions_createInstance",
+    "subscriptionSubmissions_createInstance",
+    "subscriptionGroupSubmissions_createInstance",
+]
+
+# Выпуск версии в App Store, поэтапный релиз, перенос варианта эксперимента
+# на страницу продукта: изменения сразу видят покупатели.
+[[access]]
+level = "destructive"
+reason = "releases changes to App Store customers."
+operations = [
+    "appStoreVersionReleaseRequests_createInstance",
+    "appStoreVersionPhasedReleases_createInstance",
+    "appStoreVersionPhasedReleases_updateInstance",
+    "appStoreVersionPromotions_createInstance",
+]
+
+# Цены приложения, встроенных покупок и подписок. Удаление связи prices у подписки
+# отменяет запланированные изменения цены, поэтому оно тоже destructive.
+[[access]]
+level = "destructive"
+reason = "changes prices for App Store customers."
+operations = [
+    "appPriceSchedules_createInstance",
+    "inAppPurchasePriceSchedules_createInstance",
+    "subscriptionPrices_createInstance",
+    "subscriptions_prices_deleteToManyRelationship",
+]
+
+# Доступность по странам и предзаказы.
+[[access]]
+level = "destructive"
+reason = "changes availability in App Store territories or pre-orders."
+operations = [
+    "appAvailabilitiesV2_createInstance",
+    "territoryAvailabilities_updateInstance",
+    "endAppAvailabilityPreOrders_createInstance",
+    "inAppPurchaseAvailabilities_createInstance",
+    "subscriptionAvailabilities_createInstance",
+    "subscriptionPlanAvailabilities_createInstance",
+    "subscriptionPlanAvailabilities_updateInstance",
+    "subscriptionPlanAvailabilities_availableTerritories_replaceToManyRelationship",
+]
+
+# Сертификаты: удаление (отзыв) — DELETE и так destructive; деактивация сертификата
+# (activated: false) ломает Apple Pay и Wallet у пользователей так же.
+[[access]]
+level = "destructive"
+reason = "activates or deactivates a certificate."
+operations = ["certificates_updateInstance"]
+
+# Пользователи команды и их роли, доступ к приложениям, приглашения.
+[[access]]
+level = "destructive"
+reason = "changes team members, their roles or app access."
+operations = [
+    "users_updateInstance",
+    "userInvitations_createInstance",
+    "users_visibleApps_createToManyRelationship",
+    "users_visibleApps_replaceToManyRelationship",
+    "users_visibleApps_deleteToManyRelationship",
+]
+
+# Тестировщики TestFlight: создание тестировщика и добавление в группу или к сборке
+# рассылают приглашения людям вне команды. Внешняя группа или внутренняя, по операции
+# не понять, поэтому destructive все добавления тестировщиков. Удаление тестировщика
+# из группы — удаление связи, write.
+[[access]]
+level = "destructive"
+reason = "invites testers or notifies them by email."
+operations = [
+    "betaTesterInvitations_createInstance",
+    "betaTesters_createInstance",
+    "betaGroups_betaTesters_createToManyRelationship",
+    "betaTesters_betaGroups_createToManyRelationship",
+    "betaTesters_builds_createToManyRelationship",
+    "builds_individualTesters_createToManyRelationship",
+    "buildBetaNotifications_createInstance",
+]
+
+# Публичные ответы на отзывы покупателей.
+[[access]]
+level = "destructive"
+reason = "publishes a public response to a customer review."
+operations = ["customerReviewResponses_createInstance"]
+
+# Необратимые изменения: истечение сборки (expired: true) не отменяется; удаление
+# связи introductoryOffers удаляет сами вводные предложения.
+[[access]]
+level = "destructive"
+reason = "cannot be undone (expiring a build, deleting introductory offers)."
+operations = [
+    "builds_updateInstance",
+    "subscriptions_introductoryOffers_deleteToManyRelationship",
+]
+
+# Game Center: результаты и достижения игроков, блокировка игроков и модерация
+# результатов меняют данные, которые видят игроки.
+[[access]]
+level = "destructive"
+reason = "changes data visible to Game Center players."
+operations = [
+    "gameCenterLeaderboardEntrySubmissions_createInstance",
+    "gameCenterPlayerAchievementSubmissions_createInstance",
+    "gameCenterScoreModerations_updateInstance",
+    "gameCenterDetailPlayers_updateInstance",
+]
+
+# POST, который только проверяет набор правил матчмейкинга на тестовых запросах
+# и ничего не сохраняет.
+[[access]]
+level = "read"
+reason = "runs a test of a matchmaking rule set and changes nothing."
+operations = ["gameCenterMatchmakingRuleSetTests_createInstance"]
+
+# ---------------------------------------------------------------------------
+# Имена инструментов. Базовое имя — из operationId (build/naming.rs): глагол
+# (list, get, create, update, delete; для связей list, get, add, remove, replace, set)
+# + ресурс в единственном числе + связь, без слов связи, повторяющих ресурс.
+# ---------------------------------------------------------------------------
+
+[naming]
+# Сокращения применяются по порядку, только пока имя длиннее 40 символов,
+# и только по границам слов: короткие имена остаются полными (get_game_center_detail),
+# длинные сокращаются (list_gc_leaderboard_set_versions). Порядок важен: сначала
+# общепринятые сокращения (gc, iap, loc, eula), потом укорачивание длинных ресурсов.
+abbreviations = [
+    ["game_center", "gc"],
+    ["in_app_purchase", "iap"],
+    ["in_app_purchases", "iaps"],
+    ["end_user_license_agreement", "eula"],
+    ["app_store_version_experiment", "experiment"],
+    ["app_store_version_experiments", "experiments"],
+    ["app_custom_product_page", "product_page"],
+    ["alternative_distribution_package", "alt_package"],
+    ["alternative_distribution", "alt_distribution"],
+    ["android_to_ios_app_mapping", "android_app_mapping"],
+    ["available_territories", "territories"],
+    ["compatibility_versions", "compat_versions"],
+    ["feedback_screenshot_submission", "feedback_screenshot"],
+    ["feedback_screenshot_submissions", "feedback_screenshots"],
+    ["localization", "loc"],
+    ["localizations", "locs"],
+    ["app_store_review", "review"],
+    ["one_time_use_code", "one_time_code"],
+    ["one_time_use_codes", "one_time_codes"],
+    ["app_clip_default_experience", "clip_experience"],
+    ["app_clip_advanced_experience", "clip_advanced_experience"],
+    ["app_clip", "clip"],
+    ["experiment_treatment", "treatment"],
+    ["background_asset", "bg_asset"],
+    ["encryption_declaration", "encryption"],
+    ["app_store_version", "version"],
+    ["subscription", "sub"],
+]
+
+# Явные имена: operationId = "имя_инструмента". Нужны, когда базовое имя совпадает
+# с другим или правила сокращения дают нечитаемое имя.
+[naming.overrides]
+# Связанный ресурс «один к одному» называется так же, как сам ресурс
+# (apps/{id}/appPriceSchedule и appPriceSchedules/{id}): у связанного — суффикс
+# _for_<родитель>, потому что id в нём — идентификатор родителя.
+"appEncryptionDeclarations_appEncryptionDeclarationDocument_getToOneRelated" = "get_encryption_document_for_declaration"
+"apps_appAvailabilityV2_getToOneRelated" = "get_app_availability_for_app"
+"apps_appPriceSchedule_getToOneRelated" = "get_app_price_schedule_for_app"
+"apps_assetLibrary_getToOneRelated" = "get_asset_library_for_app"
+"builds_buildBetaDetail_getToOneRelated" = "get_build_beta_detail_for_build"
+"customerReviews_response_getToOneRelated" = "get_response_for_customer_review"
+"inAppPurchasesV2_appStoreReviewScreenshot_getToOneRelated" = "get_review_screenshot_for_iap"
+"inAppPurchasesV2_content_getToOneRelated" = "get_content_for_iap"
+"inAppPurchasesV2_inAppPurchaseAvailability_getToOneRelated" = "get_availability_for_iap"
+"inAppPurchasesV2_iapPriceSchedule_getToOneRelated" = "get_price_schedule_for_iap"
+"subscriptions_appStoreReviewScreenshot_getToOneRelated" = "get_review_screenshot_for_subscription"
+# Эксперименты приложения и эксперименты версии дают одно базовое имя.
+"apps_appStoreVersionExperimentsV2_getToManyRelated" = "list_app_experiments"
+# Метрики матчмейкинга Game Center: слово matchmaking повторяется в ресурсе и метрике.
+"gameCenterDetails_classicMatchmakingRequests_getMetrics" = "get_gc_classic_matchmaking_requests"
+"gameCenterDetails_ruleBasedMatchmakingRequests_getMetrics" = "get_gc_rule_based_matchmaking_requests"
+"gameCenterMatchmakingQueues_matchmakingQueueSizes_getMetrics" = "get_gc_queue_sizes"
+"gameCenterMatchmakingQueues_matchmakingRequests_getMetrics" = "get_gc_queue_requests"
+"gameCenterMatchmakingQueues_matchmakingSessions_getMetrics" = "get_gc_queue_sessions"
+"gameCenterMatchmakingQueues_experimentMatchmakingQueueSizes_getMetrics" = "get_gc_queue_experiment_sizes"
+"gameCenterMatchmakingQueues_experimentMatchmakingRequests_getMetrics" = "get_gc_queue_experiment_requests"
+"gameCenterMatchmakingRules_matchmakingBooleanRuleResults_getMetrics" = "get_gc_rule_boolean_results"
+"gameCenterMatchmakingRules_matchmakingNumberRuleResults_getMetrics" = "get_gc_rule_number_results"
+"gameCenterMatchmakingRules_matchmakingRuleErrors_getMetrics" = "get_gc_rule_errors"
+"gameCenterMatchmakingRuleSets_matchmakingQueues_getToManyRelated" = "list_gc_matchmaking_rule_set_queues"
+# Длинные имена, которые правила сокращения не укладывают в 40 символов.
+"betaGroups_betaRecruitmentCriterionCompatibleBuildCheck_getToOneRelated" = "get_beta_group_compatible_build_check"
+"gameCenterDetails_challengesMinimumPlatformVersions_replaceToManyRelationship" = "replace_gc_detail_challenge_min_versions"
+"sandboxTestersClearPurchaseHistoryRequestV2_createInstance" = "clear_sandbox_tester_purchase_history"
+"appAssetLibraryPlacementOrderingRequests_createInstance" = "create_asset_placement_ordering_request"
+"appAvailabilitiesV2_territoryAvailabilities_getToManyRelated" = "list_app_availability_territories"
+"betaFeedbackCrashSubmissions_crashLog_getToOneRelated" = "get_beta_feedback_crash_log"
+"subscriptionPricePoints_adjustedEqualizations_getToManyRelated" = "list_sub_price_point_adj_equalizations"
+"backgroundAssetVersionExternalBetaReleases_getInstance" = "get_bg_asset_external_beta_release"
+"backgroundAssetVersionInternalBetaReleases_getInstance" = "get_bg_asset_internal_beta_release"
+"buildBundles_appClipDomainCacheStatus_getToOneRelated" = "get_build_bundle_domain_cache_status"
+"buildBundles_appClipDomainDebugStatus_getToOneRelated" = "get_build_bundle_domain_debug_status"
+"subscriptionPlanAvailabilities_availableTerritories_replaceToManyRelationship" = "replace_sub_plan_territories"
+
+# ---------------------------------------------------------------------------
+# Исключённые операции. Они не регистрируются как инструменты, но остаются в таблице
+# EXCLUDED (api_search объясняет причину, api_request может их вызвать):
+# - устаревшие (deprecated: true в спецификации);
+# - чтения связей GET …/relationships/…: возвращают только type и id, а список связанных
+#   ресурсов с атрибутами (GET …/{id}/<связь>) есть отдельным инструментом;
+# - списки связанных ресурсов, повторяющие общий список с фильтром (ниже).
+# Запись связей (add_, remove_, replace_, set_) остаётся.
+# ---------------------------------------------------------------------------
+
+[exclude]
+keep_deprecated = []
+keep_relationship_reads = []
+
+[[exclude.duplicates]]
+operation = "apps_builds_getToManyRelated"
+replacement = "builds_getCollection"
+filter = "filter[app]"
+
+[[exclude.duplicates]]
+operation = "apps_betaGroups_getToManyRelated"
+replacement = "betaGroups_getCollection"
+filter = "filter[app]"
+
+[[exclude.duplicates]]
+operation = "apps_preReleaseVersions_getToManyRelated"
+replacement = "preReleaseVersions_getCollection"
+filter = "filter[app]"
+
+[[exclude.duplicates]]
+operation = "apps_reviewSubmissions_getToManyRelated"
+replacement = "reviewSubmissions_getCollection"
+filter = "filter[app]"
+
+[[exclude.duplicates]]
+operation = "apps_appEncryptionDeclarations_getToManyRelated"
+replacement = "appEncryptionDeclarations_getCollection"
+filter = "filter[app]"
+
+[[exclude.duplicates]]
+operation = "apps_betaAppLocalizations_getToManyRelated"
+replacement = "betaAppLocalizations_getCollection"
+filter = "filter[app]"
+
+[[exclude.duplicates]]
+operation = "betaGroups_builds_getToManyRelated"
+replacement = "builds_getCollection"
+filter = "filter[betaGroups]"
+
+[[exclude.duplicates]]
+operation = "betaGroups_betaTesters_getToManyRelated"
+replacement = "betaTesters_getCollection"
+filter = "filter[betaGroups]"
+
+[[exclude.duplicates]]
+operation = "builds_betaBuildLocalizations_getToManyRelated"
+replacement = "betaBuildLocalizations_getCollection"
+filter = "filter[build]"
+
+[[exclude.duplicates]]
+operation = "preReleaseVersions_builds_getToManyRelated"
+replacement = "builds_getCollection"
+filter = "filter[preReleaseVersion]"

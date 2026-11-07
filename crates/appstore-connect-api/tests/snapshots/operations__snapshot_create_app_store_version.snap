@@ -1,0 +1,201 @@
+---
+source: crates/appstore-connect-api/tests/operations.rs
+expression: "snapshot_view(op(\"create_app_store_version\"))"
+---
+{
+  "accept": "application/json",
+  "access": "Write",
+  "body": "Json",
+  "description": "",
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "body": {
+        "description": "JSON:API request body. AppStoreVersion representation.",
+        "properties": {
+          "data": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "copyright": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "earliestReleaseDate": {
+                    "format": "date-time",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "platform": {
+                    "enum": [
+                      "IOS",
+                      "MAC_OS",
+                      "TV_OS",
+                      "VISION_OS"
+                    ],
+                    "type": "string"
+                  },
+                  "releaseType": {
+                    "enum": [
+                      "MANUAL",
+                      "AFTER_APPROVAL",
+                      "SCHEDULED",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reviewType": {
+                    "enum": [
+                      "APP_STORE",
+                      "NOTARIZATION",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "versionString": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "versionString",
+                  "platform"
+                ],
+                "type": "object"
+              },
+              "relationships": {
+                "properties": {
+                  "app": {
+                    "properties": {
+                      "data": {
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": [
+                              "apps"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ],
+                    "type": "object"
+                  },
+                  "appStoreVersionLocalizations": {
+                    "properties": {
+                      "data": {
+                        "items": {
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "enum": [
+                                "appStoreVersionLocalizations"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "type"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "build": {
+                    "properties": {
+                      "data": {
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": [
+                              "builds"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "app"
+                ],
+                "type": "object"
+              },
+              "type": {
+                "enum": [
+                  "appStoreVersions"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "body"
+    ],
+    "type": "object"
+  },
+  "method": "POST",
+  "operation_id": "appStoreVersions_createInstance",
+  "params": [
+    {
+      "api_name": "body",
+      "description": "JSON:API request body. AppStoreVersion representation.",
+      "location": "Body",
+      "name": "body",
+      "required": true,
+      "value_type": "Object"
+    }
+  ],
+  "path": "/v1/appStoreVersions",
+  "response": "Json",
+  "summary": "Create an App Store version.",
+  "tool_name": "create_app_store_version",
+  "toolset": "versions-review"
+}

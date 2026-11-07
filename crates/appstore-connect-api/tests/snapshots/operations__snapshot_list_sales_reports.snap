@@ -1,0 +1,146 @@
+---
+source: crates/appstore-connect-api/tests/operations.rs
+expression: "snapshot_view(op(\"list_sales_reports\"))"
+---
+{
+  "accept": "application/a-gzip",
+  "access": "Read",
+  "body": null,
+  "description": "",
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "filter.frequency": {
+        "description": "filter by attribute 'frequency'",
+        "items": {
+          "enum": [
+            "DAILY",
+            "WEEKLY",
+            "MONTHLY",
+            "YEARLY"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.reportDate": {
+        "description": "filter by attribute 'reportDate'",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.reportSubType": {
+        "description": "filter by attribute 'reportSubType'",
+        "items": {
+          "enum": [
+            "SUMMARY",
+            "DETAILED",
+            "SUMMARY_INSTALL_TYPE",
+            "SUMMARY_TERRITORY",
+            "SUMMARY_CHANNEL"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.reportType": {
+        "description": "filter by attribute 'reportType'",
+        "items": {
+          "enum": [
+            "SALES",
+            "PRE_ORDER",
+            "NEWSSTAND",
+            "SUBSCRIPTION",
+            "SUBSCRIPTION_EVENT",
+            "SUBSCRIBER",
+            "SUBSCRIPTION_OFFER_CODE_REDEMPTION",
+            "INSTALLS",
+            "FIRST_ANNUAL",
+            "WIN_BACK_ELIGIBILITY"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.vendorNumber": {
+        "description": "filter by attribute 'vendorNumber'",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.version": {
+        "description": "filter by attribute 'version'",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "filter.vendorNumber",
+      "filter.reportType",
+      "filter.reportSubType",
+      "filter.frequency"
+    ],
+    "type": "object"
+  },
+  "method": "GET",
+  "operation_id": "salesReports_getCollection",
+  "params": [
+    {
+      "api_name": "filter[vendorNumber]",
+      "description": "filter by attribute 'vendorNumber'",
+      "location": "Query",
+      "name": "filter.vendorNumber",
+      "required": true,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[reportType]",
+      "description": "filter by attribute 'reportType'",
+      "location": "Query",
+      "name": "filter.reportType",
+      "required": true,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[reportSubType]",
+      "description": "filter by attribute 'reportSubType'",
+      "location": "Query",
+      "name": "filter.reportSubType",
+      "required": true,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[frequency]",
+      "description": "filter by attribute 'frequency'",
+      "location": "Query",
+      "name": "filter.frequency",
+      "required": true,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[reportDate]",
+      "description": "filter by attribute 'reportDate'",
+      "location": "Query",
+      "name": "filter.reportDate",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[version]",
+      "description": "filter by attribute 'version'",
+      "location": "Query",
+      "name": "filter.version",
+      "required": false,
+      "value_type": "Array"
+    }
+  ],
+  "path": "/v1/salesReports",
+  "response": "Binary",
+  "summary": "List sales reports.",
+  "tool_name": "list_sales_reports",
+  "toolset": "analytics-reports"
+}

@@ -1,0 +1,110 @@
+---
+source: crates/appstore-connect-api/tests/operations.rs
+expression: "snapshot_view(op(\"create_app_screenshot\"))"
+---
+{
+  "accept": "application/json",
+  "access": "Write",
+  "body": "Json",
+  "description": "",
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "body": {
+        "description": "JSON:API request body. AppScreenshot representation.",
+        "properties": {
+          "data": {
+            "properties": {
+              "attributes": {
+                "properties": {
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "fileSize": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "fileSize"
+                ],
+                "type": "object"
+              },
+              "relationships": {
+                "properties": {
+                  "appScreenshotSet": {
+                    "properties": {
+                      "data": {
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": [
+                              "appScreenshotSets"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "data"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "appScreenshotSet"
+                ],
+                "type": "object"
+              },
+              "type": {
+                "enum": [
+                  "appScreenshots"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "relationships",
+              "attributes",
+              "type"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "required": [
+      "body"
+    ],
+    "type": "object"
+  },
+  "method": "POST",
+  "operation_id": "appScreenshots_createInstance",
+  "params": [
+    {
+      "api_name": "body",
+      "description": "JSON:API request body. AppScreenshot representation.",
+      "location": "Body",
+      "name": "body",
+      "required": true,
+      "value_type": "Object"
+    }
+  ],
+  "path": "/v1/appScreenshots",
+  "response": "Json",
+  "summary": "Create an app screenshot.",
+  "tool_name": "create_app_screenshot",
+  "toolset": "media"
+}

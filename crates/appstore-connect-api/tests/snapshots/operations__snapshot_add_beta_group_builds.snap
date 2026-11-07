@@ -1,0 +1,79 @@
+---
+source: crates/appstore-connect-api/tests/operations.rs
+expression: "snapshot_view(op(\"add_beta_group_builds\"))"
+---
+{
+  "accept": "application/json",
+  "access": "Write",
+  "body": "Json",
+  "description": "`body.data` holds resource identifiers (`type` and `id`), not attributes.",
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "body": {
+        "description": "JSON:API request body. List of related linkages.",
+        "properties": {
+          "data": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "builds"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "id": {
+        "description": "ID of the `betaGroups` resource.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "body"
+    ],
+    "type": "object"
+  },
+  "method": "POST",
+  "operation_id": "betaGroups_builds_createToManyRelationship",
+  "params": [
+    {
+      "api_name": "id",
+      "description": "ID of the `betaGroups` resource.",
+      "location": "Path",
+      "name": "id",
+      "required": true,
+      "value_type": "String"
+    },
+    {
+      "api_name": "body",
+      "description": "JSON:API request body. List of related linkages.",
+      "location": "Body",
+      "name": "body",
+      "required": true,
+      "value_type": "Object"
+    }
+  ],
+  "path": "/v1/betaGroups/{id}/relationships/builds",
+  "response": "Json",
+  "summary": "Add builds to a beta group.",
+  "tool_name": "add_beta_group_builds",
+  "toolset": "testflight"
+}

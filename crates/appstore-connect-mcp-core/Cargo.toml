@@ -1,0 +1,63 @@
+[package]
+name = "appstore-connect-mcp-core"
+description = "Transport-agnostic MCP tools for the App Store Connect API"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+appstore-connect-api = { version = "0.1.0", path = "../appstore-connect-api" }
+base64 = "0.22.1"
+# Подпись (certificate_create) — на чистом Rust, без OpenSSL и C: сборка под musl.
+# Ключ RSA 2048 и CSR (PKCS#10) создаются локально; rsa 0.10 — та же линия RustCrypto
+# (der 0.8, spki 0.8, pkcs8 0.11, rand_core 0.10), что и p256 0.14 клиента API.
+der = { version = "0.8.3", features = ["pem", "std"] }
+# gzip отчётов App Store Connect на чистом Rust (miniz_oxide): без zlib и C, собирается под musl.
+flate2 = { version = "1.1.9", default-features = false, features = ["rust_backend"] }
+# Фильтр ответа `jq` (диалект jaq): без файлов, окружения и сети.
+jaq-core = "3.1.2"
+jaq-json = { version = "2.0.3", features = ["serde"] }
+jaq-std = "3.0.4"
+# Контрольная сумма загружаемых файлов (sourceFileChecksum) — MD5 на чистом Rust.
+md-5 = "0.11.0"
+# Сборка .p12 и чтение его обратно в тестах.
+p12-keystore = "0.4.1"
+percent-encoding = "2.3.2"
+pkcs8 = { version = "0.11.0", features = ["pem", "std"] }
+# Info.plist внутри .ipa (двоичный или XML) — без serde.
+plist = { version = "1.10.3", default-features = false }
+rand = "0.10.3"
+regex = "1.13.1"
+rmcp = { version = "3.8.0", default-features = false, features = ["server"] }
+rsa = { version = "=0.10.0-rc.22", features = ["pkcs1v15"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+spki = { version = "0.8.1", features = ["std"] }
+# Процесс фильтра `jq`, таймауты, файлы `save_to`, уведомления о смене списка инструментов;
+# распаковка отчётов и сборка .p12 — в spawn_blocking.
+tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "process", "rt", "sync", "time"] }
+tracing = "0.1.44"
+x509-cert = { version = "0.3.0", default-features = false, features = ["pem", "std"] }
+zeroize = "1.8.2"
+# Чтение .ipa: только deflate на zlib-rs (чистый Rust, собирается под musl).
+zip = { version = "9.4.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Домашний каталог для установки профилей (profile_download с install).
+dirs = "7.0.0"
+
+[dev-dependencies]
+# Ключ ES256 для тестов генерируется в самом тесте.
+p256 = { version = "0.14.0", default-features = false, features = ["ecdsa", "pem", "std"] }
+rmcp = { version = "3.8.0", default-features = false, features = ["client", "server"] }
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["io-util", "macros", "rt-multi-thread"] }
+url = "2.5.8"
+wiremock = "0.6.5"
+# В тестах сертификат «от Apple» выпускается локально.
+x509-cert = { version = "0.3.0", default-features = false, features = ["builder", "pem", "std"] }
+
+[lints]
+workspace = true

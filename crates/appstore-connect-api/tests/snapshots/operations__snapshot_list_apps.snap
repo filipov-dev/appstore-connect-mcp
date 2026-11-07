@@ -1,0 +1,933 @@
+---
+source: crates/appstore-connect-api/tests/operations.rs
+expression: "snapshot_view(op(\"list_apps\"))"
+---
+{
+  "accept": "application/json",
+  "access": "Read",
+  "body": null,
+  "description": "Paginated: `limit` sets the page size (max 200); for the next page call `api_request` with the `links.next` URL from the response.\n\n`include` adds related resources to `included`; `fields.<type>` limits the attributes returned per resource type.",
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "fields.androidToIosAppMappingDetails": {
+        "description": "Attributes to return for `androidToIosAppMappingDetails`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.appClips": {
+        "description": "Attributes to return for `appClips`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.appCustomProductPages": {
+        "description": "Attributes to return for `appCustomProductPages`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.appEncryptionDeclarations": {
+        "description": "Attributes to return for `appEncryptionDeclarations`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.appEvents": {
+        "description": "Attributes to return for `appEvents`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.appInfos": {
+        "description": "Attributes to return for `appInfos`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.appStoreVersionExperiments": {
+        "description": "Attributes to return for `appStoreVersionExperiments`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.appStoreVersions": {
+        "description": "Attributes to return for `appStoreVersions`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.apps": {
+        "description": "Attributes to return for `apps`.",
+        "items": {
+          "enum": [
+            "accessibilityUrl",
+            "name",
+            "bundleId",
+            "sku",
+            "primaryLocale",
+            "isOrEverWasMadeForKids",
+            "subscriptionStatusUrl",
+            "subscriptionStatusUrlVersion",
+            "subscriptionStatusUrlForSandbox",
+            "subscriptionStatusUrlVersionForSandbox",
+            "contentRightsDeclaration",
+            "streamlinedPurchasingEnabled",
+            "accessibilityDeclarations",
+            "appEncryptionDeclarations",
+            "appStoreIcon",
+            "ciProduct",
+            "betaTesters",
+            "betaGroups",
+            "appStoreVersions",
+            "appTags",
+            "preReleaseVersions",
+            "betaAppLocalizations",
+            "builds",
+            "betaLicenseAgreement",
+            "betaAppReviewDetail",
+            "appInfos",
+            "appClips",
+            "appPricePoints",
+            "endUserLicenseAgreement",
+            "appPriceSchedule",
+            "appAvailabilityV2",
+            "inAppPurchases",
+            "subscriptionGroups",
+            "retentionMessages",
+            "gameCenterEnabledVersions",
+            "performanceOverviews",
+            "perfPowerMetrics",
+            "appCustomProductPages",
+            "inAppPurchasesV2",
+            "promotedPurchases",
+            "appEvents",
+            "reviewSubmissions",
+            "subscriptionGracePeriod",
+            "customerReviews",
+            "customerReviewSummarizations",
+            "gameCenterDetail",
+            "appStoreVersionExperimentsV2",
+            "alternativeDistributionKey",
+            "analyticsReportRequests",
+            "marketplaceSearchDetail",
+            "buildUploads",
+            "backgroundAssets",
+            "assetLibrary",
+            "betaFeedbackScreenshotSubmissions",
+            "betaFeedbackCrashSubmissions",
+            "searchKeywords",
+            "webhooks",
+            "androidToIosAppMappingDetails"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.betaAppLocalizations": {
+        "description": "Attributes to return for `betaAppLocalizations`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.betaAppReviewDetails": {
+        "description": "Attributes to return for `betaAppReviewDetails`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.betaGroups": {
+        "description": "Attributes to return for `betaGroups`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.betaLicenseAgreements": {
+        "description": "Attributes to return for `betaLicenseAgreements`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.buildIcons": {
+        "description": "Attributes to return for `buildIcons`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.builds": {
+        "description": "Attributes to return for `builds`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.ciProducts": {
+        "description": "Attributes to return for `ciProducts`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.endUserLicenseAgreements": {
+        "description": "Attributes to return for `endUserLicenseAgreements`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.gameCenterDetails": {
+        "description": "Attributes to return for `gameCenterDetails`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.inAppPurchases": {
+        "description": "Attributes to return for `inAppPurchases`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.preReleaseVersions": {
+        "description": "Attributes to return for `preReleaseVersions`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.promotedPurchases": {
+        "description": "Attributes to return for `promotedPurchases`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.retentionMessages": {
+        "description": "Attributes to return for `retentionMessages`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.reviewSubmissions": {
+        "description": "Attributes to return for `reviewSubmissions`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.subscriptionGracePeriods": {
+        "description": "Attributes to return for `subscriptionGracePeriods`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "fields.subscriptionGroups": {
+        "description": "Attributes to return for `subscriptionGroups`.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.appStoreVersions": {
+        "description": "filter by id(s) of related 'appStoreVersions'",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.appStoreVersions.appVersionState": {
+        "description": "filter by attribute 'appStoreVersions.appVersionState'",
+        "items": {
+          "enum": [
+            "ACCEPTED",
+            "DEVELOPER_REJECTED",
+            "IN_REVIEW",
+            "INVALID_BINARY",
+            "METADATA_REJECTED",
+            "PENDING_APPLE_RELEASE",
+            "PENDING_DEVELOPER_RELEASE",
+            "PREPARE_FOR_SUBMISSION",
+            "PROCESSING_FOR_DISTRIBUTION",
+            "READY_FOR_DISTRIBUTION",
+            "READY_FOR_REVIEW",
+            "REJECTED",
+            "REPLACED_WITH_NEW_VERSION",
+            "WAITING_FOR_EXPORT_COMPLIANCE",
+            "WAITING_FOR_REVIEW"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.appStoreVersions.platform": {
+        "description": "filter by attribute 'appStoreVersions.platform'",
+        "items": {
+          "enum": [
+            "IOS",
+            "MAC_OS",
+            "TV_OS",
+            "VISION_OS"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.bundleId": {
+        "description": "filter by attribute 'bundleId'",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.id": {
+        "description": "filter by id(s)",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.name": {
+        "description": "filter by attribute 'name'",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.reviewSubmissions.platform": {
+        "description": "filter by attribute 'reviewSubmissions.platform'",
+        "items": {
+          "enum": [
+            "IOS",
+            "MAC_OS",
+            "TV_OS",
+            "VISION_OS"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.reviewSubmissions.state": {
+        "description": "filter by attribute 'reviewSubmissions.state'",
+        "items": {
+          "enum": [
+            "READY_FOR_REVIEW",
+            "WAITING_FOR_REVIEW",
+            "IN_REVIEW",
+            "UNRESOLVED_ISSUES",
+            "CANCELING",
+            "COMPLETING",
+            "COMPLETE"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "filter.sku": {
+        "description": "filter by attribute 'sku'",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "include": {
+        "description": "Related resources to add to `included`.",
+        "items": {
+          "enum": [
+            "appEncryptionDeclarations",
+            "appStoreIcon",
+            "ciProduct",
+            "betaGroups",
+            "appStoreVersions",
+            "preReleaseVersions",
+            "betaAppLocalizations",
+            "builds",
+            "betaLicenseAgreement",
+            "betaAppReviewDetail",
+            "appInfos",
+            "appClips",
+            "endUserLicenseAgreement",
+            "inAppPurchases",
+            "subscriptionGroups",
+            "retentionMessages",
+            "gameCenterEnabledVersions",
+            "appCustomProductPages",
+            "inAppPurchasesV2",
+            "promotedPurchases",
+            "appEvents",
+            "reviewSubmissions",
+            "subscriptionGracePeriod",
+            "gameCenterDetail",
+            "appStoreVersionExperimentsV2",
+            "androidToIosAppMappingDetails"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "limit": {
+        "description": "Page size.",
+        "maximum": 200,
+        "type": "integer"
+      },
+      "limit.androidToIosAppMappingDetails": {
+        "description": "Max number of included `androidToIosAppMappingDetails`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.appClips": {
+        "description": "Max number of included `appClips`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.appCustomProductPages": {
+        "description": "Max number of included `appCustomProductPages`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.appEncryptionDeclarations": {
+        "description": "Max number of included `appEncryptionDeclarations`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.appEvents": {
+        "description": "Max number of included `appEvents`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.appInfos": {
+        "description": "Max number of included `appInfos`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.appStoreVersionExperimentsV2": {
+        "description": "Max number of included `appStoreVersionExperimentsV2`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.appStoreVersions": {
+        "description": "Max number of included `appStoreVersions`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.betaAppLocalizations": {
+        "description": "Max number of included `betaAppLocalizations`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.betaGroups": {
+        "description": "Max number of included `betaGroups`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.builds": {
+        "description": "Max number of included `builds`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.inAppPurchasesV2": {
+        "description": "Max number of included `inAppPurchasesV2`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.preReleaseVersions": {
+        "description": "Max number of included `preReleaseVersions`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.promotedPurchases": {
+        "description": "Max number of included `promotedPurchases`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.retentionMessages": {
+        "description": "Max number of included `retentionMessages`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.reviewSubmissions": {
+        "description": "Max number of included `reviewSubmissions`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "limit.subscriptionGroups": {
+        "description": "Max number of included `subscriptionGroups`.",
+        "maximum": 50,
+        "type": "integer"
+      },
+      "sort": {
+        "description": "Sort keys; prefix `-` for descending order.",
+        "items": {
+          "enum": [
+            "name",
+            "-name",
+            "bundleId",
+            "-bundleId",
+            "sku",
+            "-sku"
+          ],
+          "type": "string"
+        },
+        "type": "array"
+      }
+    },
+    "type": "object"
+  },
+  "method": "GET",
+  "operation_id": "apps_getCollection",
+  "params": [
+    {
+      "api_name": "filter[name]",
+      "description": "filter by attribute 'name'",
+      "location": "Query",
+      "name": "filter.name",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[bundleId]",
+      "description": "filter by attribute 'bundleId'",
+      "location": "Query",
+      "name": "filter.bundleId",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[sku]",
+      "description": "filter by attribute 'sku'",
+      "location": "Query",
+      "name": "filter.sku",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[appStoreVersions.platform]",
+      "description": "filter by attribute 'appStoreVersions.platform'",
+      "location": "Query",
+      "name": "filter.appStoreVersions.platform",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[appStoreVersions.appVersionState]",
+      "description": "filter by attribute 'appStoreVersions.appVersionState'",
+      "location": "Query",
+      "name": "filter.appStoreVersions.appVersionState",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[reviewSubmissions.state]",
+      "description": "filter by attribute 'reviewSubmissions.state'",
+      "location": "Query",
+      "name": "filter.reviewSubmissions.state",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[reviewSubmissions.platform]",
+      "description": "filter by attribute 'reviewSubmissions.platform'",
+      "location": "Query",
+      "name": "filter.reviewSubmissions.platform",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[appStoreVersions]",
+      "description": "filter by id(s) of related 'appStoreVersions'",
+      "location": "Query",
+      "name": "filter.appStoreVersions",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "filter[id]",
+      "description": "filter by id(s)",
+      "location": "Query",
+      "name": "filter.id",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "sort",
+      "description": "Sort keys; prefix `-` for descending order.",
+      "location": "Query",
+      "name": "sort",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[apps]",
+      "description": "Attributes to return for `apps`.",
+      "location": "Query",
+      "name": "fields.apps",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[appEncryptionDeclarations]",
+      "description": "Attributes to return for `appEncryptionDeclarations`.",
+      "location": "Query",
+      "name": "fields.appEncryptionDeclarations",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[buildIcons]",
+      "description": "Attributes to return for `buildIcons`.",
+      "location": "Query",
+      "name": "fields.buildIcons",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[ciProducts]",
+      "description": "Attributes to return for `ciProducts`.",
+      "location": "Query",
+      "name": "fields.ciProducts",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[betaGroups]",
+      "description": "Attributes to return for `betaGroups`.",
+      "location": "Query",
+      "name": "fields.betaGroups",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[appStoreVersions]",
+      "description": "Attributes to return for `appStoreVersions`.",
+      "location": "Query",
+      "name": "fields.appStoreVersions",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[preReleaseVersions]",
+      "description": "Attributes to return for `preReleaseVersions`.",
+      "location": "Query",
+      "name": "fields.preReleaseVersions",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[betaAppLocalizations]",
+      "description": "Attributes to return for `betaAppLocalizations`.",
+      "location": "Query",
+      "name": "fields.betaAppLocalizations",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[builds]",
+      "description": "Attributes to return for `builds`.",
+      "location": "Query",
+      "name": "fields.builds",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[betaLicenseAgreements]",
+      "description": "Attributes to return for `betaLicenseAgreements`.",
+      "location": "Query",
+      "name": "fields.betaLicenseAgreements",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[betaAppReviewDetails]",
+      "description": "Attributes to return for `betaAppReviewDetails`.",
+      "location": "Query",
+      "name": "fields.betaAppReviewDetails",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[appInfos]",
+      "description": "Attributes to return for `appInfos`.",
+      "location": "Query",
+      "name": "fields.appInfos",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[appClips]",
+      "description": "Attributes to return for `appClips`.",
+      "location": "Query",
+      "name": "fields.appClips",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[endUserLicenseAgreements]",
+      "description": "Attributes to return for `endUserLicenseAgreements`.",
+      "location": "Query",
+      "name": "fields.endUserLicenseAgreements",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[inAppPurchases]",
+      "description": "Attributes to return for `inAppPurchases`.",
+      "location": "Query",
+      "name": "fields.inAppPurchases",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[subscriptionGroups]",
+      "description": "Attributes to return for `subscriptionGroups`.",
+      "location": "Query",
+      "name": "fields.subscriptionGroups",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[retentionMessages]",
+      "description": "Attributes to return for `retentionMessages`.",
+      "location": "Query",
+      "name": "fields.retentionMessages",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[appCustomProductPages]",
+      "description": "Attributes to return for `appCustomProductPages`.",
+      "location": "Query",
+      "name": "fields.appCustomProductPages",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[promotedPurchases]",
+      "description": "Attributes to return for `promotedPurchases`.",
+      "location": "Query",
+      "name": "fields.promotedPurchases",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[appEvents]",
+      "description": "Attributes to return for `appEvents`.",
+      "location": "Query",
+      "name": "fields.appEvents",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[reviewSubmissions]",
+      "description": "Attributes to return for `reviewSubmissions`.",
+      "location": "Query",
+      "name": "fields.reviewSubmissions",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[subscriptionGracePeriods]",
+      "description": "Attributes to return for `subscriptionGracePeriods`.",
+      "location": "Query",
+      "name": "fields.subscriptionGracePeriods",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[gameCenterDetails]",
+      "description": "Attributes to return for `gameCenterDetails`.",
+      "location": "Query",
+      "name": "fields.gameCenterDetails",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[appStoreVersionExperiments]",
+      "description": "Attributes to return for `appStoreVersionExperiments`.",
+      "location": "Query",
+      "name": "fields.appStoreVersionExperiments",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "fields[androidToIosAppMappingDetails]",
+      "description": "Attributes to return for `androidToIosAppMappingDetails`.",
+      "location": "Query",
+      "name": "fields.androidToIosAppMappingDetails",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "limit",
+      "description": "Page size.",
+      "location": "Query",
+      "name": "limit",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "include",
+      "description": "Related resources to add to `included`.",
+      "location": "Query",
+      "name": "include",
+      "required": false,
+      "value_type": "Array"
+    },
+    {
+      "api_name": "limit[androidToIosAppMappingDetails]",
+      "description": "Max number of included `androidToIosAppMappingDetails`.",
+      "location": "Query",
+      "name": "limit.androidToIosAppMappingDetails",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[appClips]",
+      "description": "Max number of included `appClips`.",
+      "location": "Query",
+      "name": "limit.appClips",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[appCustomProductPages]",
+      "description": "Max number of included `appCustomProductPages`.",
+      "location": "Query",
+      "name": "limit.appCustomProductPages",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[appEncryptionDeclarations]",
+      "description": "Max number of included `appEncryptionDeclarations`.",
+      "location": "Query",
+      "name": "limit.appEncryptionDeclarations",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[appEvents]",
+      "description": "Max number of included `appEvents`.",
+      "location": "Query",
+      "name": "limit.appEvents",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[appInfos]",
+      "description": "Max number of included `appInfos`.",
+      "location": "Query",
+      "name": "limit.appInfos",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[appStoreVersionExperimentsV2]",
+      "description": "Max number of included `appStoreVersionExperimentsV2`.",
+      "location": "Query",
+      "name": "limit.appStoreVersionExperimentsV2",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[appStoreVersions]",
+      "description": "Max number of included `appStoreVersions`.",
+      "location": "Query",
+      "name": "limit.appStoreVersions",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[betaAppLocalizations]",
+      "description": "Max number of included `betaAppLocalizations`.",
+      "location": "Query",
+      "name": "limit.betaAppLocalizations",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[betaGroups]",
+      "description": "Max number of included `betaGroups`.",
+      "location": "Query",
+      "name": "limit.betaGroups",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[builds]",
+      "description": "Max number of included `builds`.",
+      "location": "Query",
+      "name": "limit.builds",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[inAppPurchasesV2]",
+      "description": "Max number of included `inAppPurchasesV2`.",
+      "location": "Query",
+      "name": "limit.inAppPurchasesV2",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[preReleaseVersions]",
+      "description": "Max number of included `preReleaseVersions`.",
+      "location": "Query",
+      "name": "limit.preReleaseVersions",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[promotedPurchases]",
+      "description": "Max number of included `promotedPurchases`.",
+      "location": "Query",
+      "name": "limit.promotedPurchases",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[retentionMessages]",
+      "description": "Max number of included `retentionMessages`.",
+      "location": "Query",
+      "name": "limit.retentionMessages",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[reviewSubmissions]",
+      "description": "Max number of included `reviewSubmissions`.",
+      "location": "Query",
+      "name": "limit.reviewSubmissions",
+      "required": false,
+      "value_type": "Integer"
+    },
+    {
+      "api_name": "limit[subscriptionGroups]",
+      "description": "Max number of included `subscriptionGroups`.",
+      "location": "Query",
+      "name": "limit.subscriptionGroups",
+      "required": false,
+      "value_type": "Integer"
+    }
+  ],
+  "path": "/v1/apps",
+  "response": "Json",
+  "summary": "List apps.",
+  "tool_name": "list_apps",
+  "toolset": "apps"
+}

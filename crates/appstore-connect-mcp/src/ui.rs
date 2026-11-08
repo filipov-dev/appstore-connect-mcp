@@ -77,6 +77,40 @@ impl Ui for TerminalUi {
     }
 }
 
+/// Тихий режим (`--no-input`): вывод идёт дальше, но вопросов нет и браузер не
+/// открывается. Вопрос — ошибка с подсказкой передать значение флагом, «да/нет» — отказ.
+pub struct SilentUi<'a> {
+    inner: &'a mut dyn Ui,
+}
+
+impl<'a> SilentUi<'a> {
+    pub fn new(inner: &'a mut dyn Ui) -> Self {
+        Self { inner }
+    }
+}
+
+impl Ui for SilentUi<'_> {
+    fn say(&mut self, line: &str) {
+        self.inner.say(line);
+    }
+
+    fn ask(&mut self, _prompt: &str) -> io::Result<String> {
+        Err(io::Error::other("questions are disabled by --no-input"))
+    }
+
+    fn confirm(&mut self, _question: &str, _default: bool) -> io::Result<bool> {
+        Ok(false)
+    }
+
+    fn is_interactive(&self) -> bool {
+        false
+    }
+
+    fn open_url(&mut self, _url: &str) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 pub mod testing {
     use std::collections::VecDeque;
@@ -149,6 +183,22 @@ pub mod testing {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn silent_ui_passes_output_and_refuses_input() {
+        let mut inner = testing::ScriptedUi::answering(&["answer"]);
+        {
+            let mut silent = SilentUi::new(&mut inner);
+            assert!(!silent.is_interactive());
+            silent.say("hello");
+            assert!(silent.ask("Question? ").is_err());
+            assert!(!silent.confirm("Sure?", true).unwrap());
+            silent.open_url("https://example.com").unwrap();
+        }
+        assert_eq!(inner.output, ["hello"]);
+        assert!(inner.questions.is_empty());
+        assert!(inner.opened.is_empty());
+    }
 
     #[test]
     fn yes_no_answers() {

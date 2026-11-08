@@ -31,18 +31,17 @@ brew install filipov-dev/tap/appstore-connect-mcp
 
 ## Быстрый старт
 
-1. Создайте ключ App Store Connect API: App Store Connect → Users and Access → Integrations → App Store Connect API → Team Keys, роль — Admin (с другими ролями часть инструментов не работает). Скачайте файл `AuthKey_<KEYID>.p8` — Apple даёт скачать его только один раз. Подробнее о ключах и ролях: [docs/api-key.md](docs/api-key.md).
-2. Подключите сервер к клиенту:
+Подключите сервер к клиенту:
 
-   ```bash
-   appstore-connect-mcp connect claude-code
-   # или
-   appstore-connect-mcp connect codex
-   ```
+```bash
+appstore-connect-mcp connect claude-code
+# или
+appstore-connect-mcp connect codex
+```
 
-   `connect` спросит путь к `.p8`, Key ID и Issuer ID, проверит ключ, сохранит его в системное хранилище и после подтверждения зарегистрирует сервер `appstore-connect`. Перезапустите клиент.
+Если ключа App Store Connect API ещё нет, `connect` проведёт по шагам: объяснит, что такое файл ключа, Key ID и Issuer ID, откроет в браузере страницу ключей App Store Connect и подскажет, что нажать (командный ключ, роль Admin, файл `.p8` скачивается только один раз), найдёт скачанный `AuthKey_<KEYID>.p8` в «Загрузках», покажет, где взять Issuer ID, проверит ключ и сохранит его в системное хранилище. Затем после подтверждения зарегистрирует сервер `appstore-connect`. Перезапустите клиент. Подробнее о ключах и ролях: [docs/api-key.md](docs/api-key.md).
 
-Ключ можно сохранить и отдельно: `appstore-connect-mcp auth login --key-file ~/Downloads/AuthKey_ABC123DEFG.p8 --issuer-id 00000000-0000-0000-0000-000000000000`. Для второго кабинета заведите отдельный профиль: `appstore-connect-mcp connect codex --profile client` — сервер в клиенте будет называться `asc-client`. Другие клиенты и ручное подключение — [docs/clients.md](docs/clients.md).
+Только сохранить ключ, без регистрации в клиенте, — `appstore-connect-mcp auth login` (тот же пошаговый мастер). Для скриптов и CI есть режим без вопросов: `appstore-connect-mcp auth login --no-input --key-file ~/Downloads/AuthKey_ABC123DEFG.p8 --issuer-id 00000000-0000-0000-0000-000000000000`. Для второго кабинета заведите отдельный профиль: `appstore-connect-mcp connect codex --profile client` — сервер в клиенте будет называться `asc-client`. Другие клиенты и ручное подключение — [docs/clients.md](docs/clients.md).
 
 ## Уровни доступа
 

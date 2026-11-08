@@ -18,29 +18,28 @@ use appstore_connect_api::spec::{find_toolset, toolsets};
 use clap::Args;
 
 use super::ProfileArg;
-use crate::browser::{BrowserDecision, BrowserEnv, SkipReason, decide};
 use crate::clients::claude::{self, CommandRunner, SystemRunner};
 use crate::clients::{
     ClientKind, Scope, ServerSpec, codex, default_server_name, long_name_warning,
 };
 use crate::login::{
-    KeyInput, offer_to_delete_key_file, remember_key, resolve_issuer, resolve_stored_key_id,
-    store_new_key,
+    Guide, KeyInput, NewKey, offer_to_delete_key_file, offer_vendor_number, remember_key,
+    resolve_issuer, resolve_stored_key_id, store_new_key,
 };
 use crate::profiles::{
     ProfileRepo, ProfileSettings, validate_profile_name, validate_vendor_number,
 };
-use crate::ui::{TerminalUi, Ui};
+use crate::ui::{SilentUi, TerminalUi, Ui};
 use crate::verify::{ApiVerifier, KeyVerifier};
 
-/// Страница ключей App Store Connect API (Users and Access → Integrations).
-pub const API_KEYS_URL: &str = "https://appstoreconnect.apple.com/access/integrations/api";
+pub use crate::login::API_KEYS_URL;
 
 const CONNECT_HELP: &str = "\
 The server reads the API key from the system keychain by profile name. If the profile has no \
-stored key yet, connect opens the App Store Connect API keys page (Users and Access > \
-Integrations > App Store Connect API), explains how to create a key and asks for the .p8 file, \
-the Key ID (default: from the file name AuthKey_<KEYID>.p8) and the Issuer ID. The key is \
+stored key yet, connect walks you through getting one step by step: what the key file, the Key \
+ID and the Issuer ID are, how to create a team key (the App Store Connect API keys page opens \
+in your browser), where to find the downloaded AuthKey_<KEYID>.p8 and the Issuer ID, and, \
+optionally, the vendor number for reports. The key is \
 checked with GET /v1/apps?limit=1 and stored only in the keychain. If the profile already has \
 a working key, it is reused: re-running connect only changes the settings and the client \
 registration. Pass --key-file to replace the stored key.
@@ -51,6 +50,10 @@ with the access flags; never the key. The settings are also saved in the profile
 One profile is one App Store Connect account. The server name in the client is \
 appstore-connect for the default profile and asc-<profile> for others, so that tool names \
 mcp__<server>__<tool> stay within the 64-character limit of clients.
+
+With --no-input (alias --silent) nothing is asked and no browser is opened: a new key needs \
+--key-file and --issuer-id or --individual (unless saved in the profile), and changing the \
+client config needs --yes.
 
 Links open in the default browser; over SSH, without a graphical session or with --no-browser \
 they are only printed.";
@@ -115,6 +118,10 @@ pub struct ConnectArgs {
     /// Do not open links in a browser; only print them.
     #[arg(long)]
     pub no_browser: bool,
+    /// Do not ask anything and do not open a browser: take every value from flags and the
+    /// profile. Requires --yes.
+    #[arg(long, visible_alias = "silent")]
+    pub no_input: bool,
 }
 
 impl ConnectArgs {
@@ -144,7 +151,7 @@ pub async fn run(args: ConnectArgs) -> anyhow::Result<()> {
         ui: &mut TerminalUi,
         exe,
         codex_home,
-        browser: decide(args.no_browser, &BrowserEnv::current()),
+        guide: Guide::detect(args.no_browser),
     };
     connect(&mut env, &args).await
 }
@@ -159,8 +166,8 @@ pub struct ConnectEnv<'a, V> {
     pub ui: &'a mut dyn Ui,
     pub exe: PathBuf,
     pub codex_home: PathBuf,
-    /// Открывать ли ссылки в браузере (решается в `run` по флагу и окружению).
-    pub browser: BrowserDecision,
+    /// Браузер и каталог загрузок для пошагового мастера (решается в `run`).
+    pub guide: Guide,
 }
 
 /// Наборы инструментов из флага: без пустых и повторов. Пока генератор операций не
@@ -203,6 +210,9 @@ pub async fn connect<V: KeyVerifier>(
         .as_deref()
         .map(validate_vendor_number)
         .transpose()?;
+    if args.no_input && !args.yes {
+        bail!("--no-input cannot ask for confirmation; add --yes to change the client config");
+    }
     let toolsets = normalize_toolsets(&args.toolsets)?;
     let name = args
         .name
@@ -234,10 +244,30 @@ pub async fn connect<V: KeyVerifier>(
         env.ui.say(&warning);
     }
 
-    let new_key_file = profile_key(env, &input, profile, &mut settings).await?;
+    // Тихий режим: тот же сценарий, но без вопросов, браузера и пояснений.
+    let mut silent;
+    let ui: &mut dyn Ui = if args.no_input {
+        env.guide = Guide::none();
+        silent = SilentUi::new(&mut *env.ui);
+        &mut silent
+    } else {
+        &mut *env.ui
+    };
+    let new_key = profile_key(
+        env.store,
+        env.verifier,
+        ui,
+        &env.guide,
+        &input,
+        profile,
+        &mut settings,
+    )
+    .await?;
 
     if vendor_number.is_some() {
         settings.vendor_number = vendor_number;
+    } else if new_key.as_ref().is_some_and(|key| key.guided) {
+        offer_vendor_number(ui, &env.guide, &mut settings);
     }
     settings.client = Some(client.name().to_owned());
     settings.allow_write = access.allow_write;
@@ -245,26 +275,24 @@ pub async fn connect<V: KeyVerifier>(
     settings.toolsets = toolsets;
     settings.dynamic_toolsets = dynamic_toolsets;
     env.repo.upsert(profile, settings)?;
-    env.ui.say(&format!(
+    ui.say(&format!(
         "Profile `{profile}` saved to {}.",
         env.repo.path().display()
     ));
 
     let registered = match client {
-        ClientKind::ClaudeCode => {
-            claude::register(env.runner, env.ui, args.scope, &spec, args.yes)?
-        }
-        ClientKind::Codex => codex::register(env.ui, &env.codex_home, &spec, args.yes)?,
+        ClientKind::ClaudeCode => claude::register(env.runner, ui, args.scope, &spec, args.yes)?,
+        ClientKind::Codex => codex::register(ui, &env.codex_home, &spec, args.yes)?,
     };
     if registered {
-        env.ui.say(&format!(
+        ui.say(&format!(
             "Done: {} now runs `{}` as MCP server `{}`. Restart the client to pick it up.",
             client.display_name(),
             spec.display(),
             spec.name
         ));
     } else {
-        env.ui.say(&format!(
+        ui.say(&format!(
             "{} config was not changed. The key and the profile are kept; re-run \
              `appstore-connect-mcp connect {} --profile {profile}` to register later.",
             client.display_name(),
@@ -273,26 +301,29 @@ pub async fn connect<V: KeyVerifier>(
     }
 
     // Один раз за запуск и только для файла, прочитанного в этом запуске.
-    if let Some(file) = new_key_file {
-        offer_to_delete_key_file(env.ui, &file);
+    if let Some(new_key) = new_key {
+        offer_to_delete_key_file(ui, &new_key.file);
     }
     Ok(())
 }
 
 /// Ключ профиля: рабочий сохранённый используется как есть, иначе принимается новый.
-/// Записывает Key ID и тип ключа в `settings`. Возвращает путь к файлу нового ключа, если
-/// ключ был прочитан из файла в этом запуске.
+/// Записывает Key ID и тип ключа в `settings`. Возвращает новый ключ, если он был прочитан
+/// из файла в этом запуске.
 async fn profile_key<V: KeyVerifier>(
-    env: &mut ConnectEnv<'_, V>,
+    store: &dyn KeyStore,
+    verifier: Option<&V>,
+    ui: &mut dyn Ui,
+    guide: &Guide,
     input: &KeyInput<'_>,
     profile: &str,
     settings: &mut ProfileSettings,
-) -> anyhow::Result<Option<PathBuf>> {
-    let stored = match env.store.get(profile) {
+) -> anyhow::Result<Option<NewKey>> {
+    let stored = match store.get(profile) {
         Ok(pem) => Some(pem),
         Err(AuthError::NotFound { .. }) => None,
         Err(AuthError::Corrupted { .. }) => {
-            env.ui.say(&format!(
+            ui.say(&format!(
                 "The value stored for profile `{profile}` is not a valid API key; a new key is \
                  needed."
             ));
@@ -302,33 +333,31 @@ async fn profile_key<V: KeyVerifier>(
     };
 
     match (stored, input.key_file) {
-        (Some(_), Some(_)) => env.ui.say(&format!(
+        (Some(_), Some(_)) => ui.say(&format!(
             "Profile `{profile}` already has an API key in the system keychain; it will be \
              replaced with the key from --key-file."
         )),
         (Some(pem), None) => {
-            let key_id = resolve_stored_key_id(env.ui, input, settings)?;
-            let issuer = resolve_issuer(env.ui, input, settings)?;
+            let key_id = resolve_stored_key_id(ui, input, settings)?;
+            let issuer = resolve_issuer(ui, input, settings)?;
             let key = ApiKey::new(&pem, key_id, issuer)?;
-            env.ui.say(&format!(
+            ui.say(&format!(
                 "Profile `{profile}` already has an API key in the system keychain (Key ID {}).",
                 key.key_id().as_str()
             ));
-            match env.verifier {
+            match verifier {
                 None => {
-                    env.ui
-                        .say("Keeping the stored key (not checked: --no-verify).");
+                    ui.say("Keeping the stored key (not checked: --no-verify).");
                     remember_key(settings, &key);
                     return Ok(None);
                 }
                 Some(verifier) => match verifier.check(&key).await {
                     Ok(outcome) => {
-                        env.ui
-                            .say(&format!("The stored key works: {outcome}. Keeping it."));
+                        ui.say(&format!("The stored key works: {outcome}. Keeping it."));
                         remember_key(settings, &key);
                         return Ok(None);
                     }
-                    Err(err) => env.ui.say(&format!(
+                    Err(err) => ui.say(&format!(
                         "The stored key does not work ({err:#}); a new key is needed."
                     )),
                 },
@@ -337,50 +366,15 @@ async fn profile_key<V: KeyVerifier>(
         (None, _) => {}
     }
 
-    if input.key_file.is_none() {
-        if !env.ui.is_interactive() {
-            bail!(
-                "profile `{profile}` has no working API key; pass --key-file \
-                 <AuthKey_XXXXXXXXXX.p8> (create a key at {API_KEYS_URL})"
-            );
-        }
-        show_key_instructions(env.ui, env.browser);
+    if input.key_file.is_none() && !ui.is_interactive() {
+        bail!(
+            "profile `{profile}` has no working API key; pass --key-file \
+             <AuthKey_XXXXXXXXXX.p8> (create a key at {API_KEYS_URL})"
+        );
     }
-    let new_key = store_new_key(env.store, env.verifier, env.ui, profile, input, settings).await?;
+    let new_key = store_new_key(store, verifier, ui, guide, profile, input, settings).await?;
     remember_key(settings, &new_key.key);
-    Ok(Some(new_key.file))
-}
-
-/// Подсказка, как создать ключ, и ссылка на страницу ключей (в браузере, если можно).
-fn show_key_instructions(ui: &mut dyn Ui, browser: BrowserDecision) {
-    ui.say(&format!(
-        "The profile needs an App Store Connect API key. Create a team key at\n  \
-         {API_KEYS_URL}\n\
-         (Users and Access > Integrations > App Store Connect API > Team Keys; the Account \
-         Holder has to request API access once):\n  \
-         1. Click Generate API Key (+), enter a name and choose the Admin role (recommended: \
-         other roles limit which tools work).\n  \
-         2. Download the .p8 file. App Store Connect lets you download it only once; keep a \
-         backup.\n  \
-         3. Note the Key ID (next to the key) and the Issuer ID (above the list of keys).\n\
-         An individual key (created on your user profile in Users and Access) also works: \
-         leave the Issuer ID empty or pass --individual."
-    ));
-    match browser {
-        BrowserDecision::Open => match ui.open_url(API_KEYS_URL) {
-            Ok(()) => ui.say("Opened the page in your browser."),
-            Err(err) => ui.say(&format!(
-                "Could not open a browser ({err}); open the link above yourself."
-            )),
-        },
-        BrowserDecision::Skip(SkipReason::Ssh) => {
-            ui.say("SSH session: open the link above in a browser on your computer.");
-        }
-        BrowserDecision::Skip(SkipReason::NoDisplay) => {
-            ui.say("No graphical session: open the link above in a browser.");
-        }
-        BrowserDecision::Skip(SkipReason::Flag) => {}
-    }
+    Ok(Some(new_key))
 }
 
 #[cfg(test)]
@@ -392,6 +386,7 @@ mod tests {
     use appstore_connect_api::auth::MemoryStore;
 
     use super::*;
+    use crate::browser::{BrowserDecision, SkipReason};
     use crate::clients::TEST_EXE;
     use crate::clients::claude::testing::FakeRunner;
     use crate::profiles::DEFAULT_PROFILE;
@@ -412,6 +407,8 @@ mod tests {
         ui: ScriptedUi,
         codex_home: PathBuf,
         browser: BrowserDecision,
+        /// Каталог загрузок мастера; `None` — файл не ищется.
+        downloads: Option<PathBuf>,
     }
 
     impl Fixture {
@@ -428,6 +425,7 @@ mod tests {
                 ui: ScriptedUi::default(),
                 codex_home: dir.path().join("codex"),
                 browser: BrowserDecision::Skip(SkipReason::Flag),
+                downloads: None,
                 dir,
             }
         }
@@ -476,7 +474,10 @@ mod tests {
                 ui: &mut self.ui,
                 exe: PathBuf::from(TEST_EXE),
                 codex_home: self.codex_home.clone(),
-                browser: self.browser,
+                guide: Guide {
+                    browser: self.browser,
+                    downloads: self.downloads.clone(),
+                },
             };
             connect(&mut env, args).await
         }
@@ -510,6 +511,7 @@ mod tests {
             yes: false,
             no_verify: false,
             no_browser: false,
+            no_input: false,
         }
     }
 
@@ -796,19 +798,71 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn key_file_flag_does_not_open_the_browser() {
+    async fn key_file_and_issuer_flags_skip_the_guide() {
         let mut fx = Fixture::new();
         fx.browser = BrowserDecision::Open;
         let (key_file, _) = fx.key_file("AuthKey_TESTKEY123.p8");
-        fx.answers(&[ISSUER, "y"]);
+        fx.answers(&["y"]);
         let mut args = with_key_file(args(ClientKind::Codex), &key_file);
+        args.issuer_id = Some(ISSUER.into());
         args.yes = true;
         fx.connect(&args).await.unwrap();
         assert!(fx.ui.opened.is_empty());
-        assert!(!fx.ui.text().contains(API_KEYS_URL));
+        let text = fx.ui.text();
+        assert!(!text.contains(API_KEYS_URL), "{text}");
+        assert!(!text.contains("Step 1 of 4"), "{text}");
+        assert!(!text.contains("vendor number"), "{text}");
         // Удалить файл — да: он удаляется после регистрации.
         assert!(!key_file.exists());
-        assert!(fx.ui.text().contains("Deleted"), "{}", fx.ui.text());
+        assert!(text.contains("Deleted"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn no_input_needs_yes_and_never_asks() {
+        let mut fx = Fixture::new();
+        fx.browser = BrowserDecision::Open;
+        let (key_file, _) = fx.key_file("AuthKey_TESTKEY123.p8");
+        let mut quiet = with_key_file(args(ClientKind::Codex), &key_file);
+        quiet.no_input = true;
+        let err = fx.connect(&quiet).await.unwrap_err().to_string();
+        assert!(err.contains("add --yes"), "{err}");
+
+        quiet.yes = true;
+        let err = fx.connect(&quiet).await.unwrap_err().to_string();
+        assert!(
+            err.contains("--issuer-id <UUID> (or --individual)"),
+            "{err}"
+        );
+        assert!(!fx.store.contains(DEFAULT_PROFILE).unwrap());
+
+        quiet.issuer_id = Some(ISSUER.into());
+        fx.answers(&[]);
+        fx.connect(&quiet).await.unwrap();
+        assert!(fx.ui.questions.is_empty(), "{:?}", fx.ui.questions);
+        assert!(fx.ui.opened.is_empty());
+        assert!(fx.codex_config().is_some());
+        assert!(key_file.exists());
+    }
+
+    #[tokio::test]
+    async fn missing_issuer_id_shows_where_to_find_it() {
+        let mut fx = Fixture::new();
+        fx.browser = BrowserDecision::Open;
+        let (key_file, _) = fx.key_file("AuthKey_TESTKEY123.p8");
+        // Неверный Issuer ID переспрашивается.
+        fx.answers(&["not-a-uuid", ISSUER, "n"]);
+        let mut args = with_key_file(args(ClientKind::Codex), &key_file);
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        assert_eq!(fx.ui.opened, [API_KEYS_URL]);
+        let text = fx.ui.text();
+        assert!(text.contains("above the list of team keys"), "{text}");
+        assert!(text.contains("is not an Issuer ID"), "{text}");
+        assert!(!text.contains("Step 1 of 4"), "{text}");
+        assert_eq!(
+            fx.settings(DEFAULT_PROFILE).issuer_id.as_deref(),
+            Some(ISSUER)
+        );
     }
 
     #[tokio::test]

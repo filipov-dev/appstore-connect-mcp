@@ -6,6 +6,11 @@
 //! системном хранилище (общая с `connect` часть — в [`crate::login`]). Команды, которая
 //! выводит ключ или JWT, нет и быть не должно.
 //!
+//! В терминале без `--key-file` `auth login` ведёт по шагам: что такое ключ, Key ID и
+//! Issuer ID, как создать ключ (страница ключей открывается в браузере), где скачанный
+//! файл, и предлагает сохранить vendor number. `--no-input` отключает вопросы, браузер и
+//! пояснения: всё берётся из флагов и профиля.
+//!
 //! После сохранения `auth login` в терминале предлагает удалить исходный файл (по
 //! умолчанию — нет: App Store Connect даёт скачать ключ только один раз, и файл может
 //! быть единственной резервной копией). Без терминала (CI, скрипты) вопроса нет и файл
@@ -19,14 +24,35 @@ use appstore_connect_api::{ApiKey, Issuer};
 use clap::{Args, Subcommand};
 
 pub use super::ProfileArg;
-use crate::login::{KeyInput, offer_to_delete_key_file, remember_key, store_new_key};
-use crate::profiles::{ProfileRepo, validate_profile_name, validate_vendor_number};
-use crate::ui::{TerminalUi, Ui};
+use crate::login::{
+    Guide, KeyInput, offer_to_delete_key_file, offer_vendor_number, remember_key, store_new_key,
+};
+use crate::profiles::{
+    DEFAULT_PROFILE, ProfileRepo, validate_profile_name, validate_vendor_number,
+};
+use crate::ui::{SilentUi, TerminalUi, Ui};
+
+const LOGIN_HELP: &str = "\
+In a terminal without --key-file, login walks you through getting a key: what the key file, \
+the Key ID and the Issuer ID are, how to create a team key in App Store Connect (the API keys \
+page opens in your browser), where to find the downloaded AuthKey_<KEYID>.p8 and the Issuer \
+ID, and, optionally, the vendor number for sales and finance reports. Wrong answers are asked \
+again.
+
+With --no-input (alias --silent) nothing is asked and no browser is opened: pass --key-file, \
+--issuer-id or --individual (unless saved in the profile) and --key-id (unless the file is \
+named AuthKey_<KEYID>.p8). Without a terminal (CI, scripts) there is no guide either.
+
+Links open in the default browser; over SSH, without a graphical session or with --no-browser \
+they are only printed.";
 use crate::verify::{ApiVerifier, CHECK_REQUEST, KeyVerifier};
 
 #[derive(Debug, Subcommand)]
 pub enum AuthCommand {
     /// Store an App Store Connect API key (.p8) and its Key ID and Issuer ID for a profile.
+    ///
+    /// In a terminal without --key-file, walks you through creating the key in App Store
+    /// Connect step by step; --no-input runs without questions.
     ///
     /// The key is read from the file given with --key-file (or asked for), validated as an
     /// EC P-256 PKCS#8 key, checked with GET /v1/apps?limit=1 unless --no-verify, and saved
@@ -45,6 +71,7 @@ pub enum AuthCommand {
 }
 
 #[derive(Debug, Clone, Args)]
+#[command(after_help = LOGIN_HELP)]
 pub struct LoginArgs {
     #[command(flatten)]
     pub profile: ProfileArg,
@@ -67,6 +94,13 @@ pub struct LoginArgs {
     /// Store the key without checking it against the App Store Connect API.
     #[arg(long)]
     pub no_verify: bool,
+    /// Do not ask anything and do not open a browser: take every value from flags and the
+    /// profile, fail with the list of missing flags otherwise.
+    #[arg(long, visible_alias = "silent")]
+    pub no_input: bool,
+    /// Do not open links in a browser; only print them.
+    #[arg(long)]
+    pub no_browser: bool,
 }
 
 impl LoginArgs {
@@ -106,7 +140,8 @@ pub async fn run(command: AuthCommand) -> anyhow::Result<()> {
     match command {
         AuthCommand::Login(args) => {
             let verifier = (!args.no_verify).then(ApiVerifier::new).transpose()?;
-            login(&store, &repo, verifier.as_ref(), &mut ui, &args).await
+            let guide = Guide::detect(args.no_browser);
+            login(&store, &repo, verifier.as_ref(), &mut ui, &guide, &args).await
         }
         AuthCommand::Status(args) => {
             let verifier = (!args.no_verify).then(ApiVerifier::new).transpose()?;
@@ -130,6 +165,7 @@ pub async fn login<V: KeyVerifier>(
     repo: &ProfileRepo,
     verifier: Option<&V>,
     ui: &mut dyn Ui,
+    guide: &Guide,
     args: &LoginArgs,
 ) -> anyhow::Result<()> {
     let profile = args.profile.profile.as_str();
@@ -143,19 +179,51 @@ pub async fn login<V: KeyVerifier>(
         .map(validate_vendor_number)
         .transpose()?;
 
-    let new_key = store_new_key(store, verifier, ui, profile, &input, &settings).await?;
+    // Тихий режим: без вопросов, браузера и пояснений; недостающие флаги — одной ошибкой.
+    let mut silent;
+    let no_guide = Guide::none();
+    let (ui, guide) = if args.no_input {
+        silent = SilentUi::new(ui);
+        (&mut silent as &mut dyn Ui, &no_guide)
+    } else {
+        (ui, guide)
+    };
+
+    let new_key = store_new_key(store, verifier, ui, guide, profile, &input, &settings).await?;
     remember_key(&mut settings, &new_key.key);
     if vendor_number.is_some() {
         settings.vendor_number = vendor_number;
+    } else if new_key.guided {
+        offer_vendor_number(ui, guide, &mut settings);
     }
     repo.upsert(profile, settings)?;
     ui.say(&format!(
         "Profile `{profile}` saved to {}.",
         repo.path().display()
     ));
+    if new_key.guided {
+        show_next_steps(ui, profile);
+    }
 
     offer_to_delete_key_file(ui, &new_key.file);
     Ok(())
+}
+
+/// Что делать после сохранения ключа: подключить сервер к MCP-клиенту.
+fn show_next_steps(ui: &mut dyn Ui, profile: &str) {
+    let flag = if profile == DEFAULT_PROFILE {
+        String::new()
+    } else {
+        format!(" --profile {profile}")
+    };
+    ui.say("");
+    ui.say("Next: connect the server to your MCP client:");
+    ui.say(&format!("  appstore-connect-mcp connect claude-code{flag}"));
+    ui.say(&format!("  appstore-connect-mcp connect codex{flag}"));
+    ui.say(&format!(
+        "Other clients run `appstore-connect-mcp serve --profile {profile}` as a stdio MCP \
+         server; check the profile with `appstore-connect-mcp auth status{flag}`."
+    ));
 }
 
 fn yes_no(value: bool) -> &'static str {
@@ -356,6 +424,8 @@ mod tests {
             individual: false,
             vendor_number: None,
             no_verify: false,
+            no_input: false,
+            no_browser: false,
         }
     }
 
@@ -404,9 +474,16 @@ mod tests {
             ..args("ci")
         };
         let mut ui = ScriptedUi::default();
-        login(&s.store, &s.repo, Some(&verifier()), &mut ui, &login_args)
-            .await
-            .unwrap();
+        login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &Guide::none(),
+            &login_args,
+        )
+        .await
+        .unwrap();
         assert!(ui.questions.is_empty());
         let text = ui.text();
         assert!(
@@ -480,29 +557,46 @@ mod tests {
     async fn login_asks_for_missing_values_and_offers_to_delete_the_file() {
         let s = setup();
         let (key_file, _) = s.key_file("AuthKey_TESTKEY123.p8");
-        // Путь в кавычках, как при перетаскивании файла в терминал; Issuer ID; удалить — да.
+        // Путь в кавычках, как при перетаскивании файла в терминал; Issuer ID; vendor number
+        // — не сейчас; удалить — да.
         let quoted = format!("'{}'", key_file.display());
-        let mut ui = ScriptedUi::answering(&[&quoted, ISSUER, "y"]);
+        let mut ui = ScriptedUi::answering(&[&quoted, ISSUER, "n", "y"]);
         login(
             &s.store,
             &s.repo,
             Some(&verifier()),
             &mut ui,
+            &Guide::none(),
             &args(DEFAULT_PROFILE),
         )
         .await
         .unwrap();
-        assert_eq!(ui.questions.len(), 3, "{:?}", ui.questions);
-        assert!(ui.questions[0].contains("Path to the API key file"));
-        assert!(ui.questions[2].contains("Delete the key file"));
-        assert!(
-            ui.text()
-                .contains("Key ID: TESTKEY123 (from the file name).")
-        );
+        assert_eq!(ui.questions.len(), 4, "{:?}", ui.questions);
+        assert!(ui.questions[0].contains("Path to the key file"));
+        assert!(ui.questions[1].contains("Issuer ID"));
+        assert!(ui.questions[2].contains("vendor number"));
+        assert!(ui.questions[3].contains("Delete the key file"));
+        let text = ui.text();
+        // Мастер объясняет, что нужно и где это взять.
+        for expected in [
+            "Step 1 of 4. What you need",
+            "Step 2 of 4. Create a team key",
+            "Step 3 of 4. The key file",
+            "Step 4 of 4. Issuer ID",
+            "Account Holder",
+            "Admin",
+            crate::login::API_KEYS_URL,
+            "Key ID: TESTKEY123 (from the file name).",
+            "Next: connect the server to your MCP client",
+            "appstore-connect-mcp connect claude-code",
+        ] {
+            assert!(text.contains(expected), "{expected}: {text}");
+        }
         assert!(!key_file.exists());
         let saved = s.repo.get(DEFAULT_PROFILE).unwrap().unwrap();
         assert_eq!(saved.key_id.as_deref(), Some("TESTKEY123"));
         assert_eq!(saved.issuer_id.as_deref(), Some(ISSUER));
+        assert_eq!(saved.vendor_number, None);
 
         // Повторный вход: Issuer ID из профиля, пустой ответ на удаление — оставить файл.
         let (key_file, pem) = s.key_file("other.p8");
@@ -511,15 +605,186 @@ mod tests {
             key_file: Some(key_file.clone()),
             ..args(DEFAULT_PROFILE)
         };
-        login(&s.store, &s.repo, Some(&verifier()), &mut ui, &rerun)
-            .await
-            .unwrap();
+        login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &Guide::none(),
+            &rerun,
+        )
+        .await
+        .unwrap();
         let text = ui.text();
         assert!(text.contains("(from the profile)"), "{text}");
         assert!(text.contains("API key replaced"), "{text}");
         assert!(text.contains("Kept"), "{text}");
         assert!(key_file.exists());
         assert_eq!(s.store.get(DEFAULT_PROFILE).unwrap().expose(), pem);
+    }
+
+    #[tokio::test]
+    async fn wizard_finds_the_downloaded_key_and_saves_the_vendor_number() {
+        let s = setup();
+        let downloads = s.dir.path().join("Downloads");
+        fs::create_dir(&downloads).unwrap();
+        let key_file = downloads.join("AuthKey_TESTKEY123.p8");
+        let pem = generated_key_pem();
+        fs::write(&key_file, &pem).unwrap();
+        let guide = Guide {
+            browser: crate::browser::BrowserDecision::Open,
+            downloads: Some(downloads),
+        };
+        // Enter после скачивания; найденный файл — да; Issuer ID; vendor number — да,
+        // сначала неверный, потом верный; удалить файл — нет.
+        let mut ui = ScriptedUi::answering(&["", "", ISSUER, "y", "12ab", "80000001", "n"]);
+        login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &guide,
+            &args("work"),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            ui.opened,
+            [crate::login::API_KEYS_URL, crate::login::PAYMENTS_URL]
+        );
+        assert!(
+            ui.questions[1].contains("AuthKey_TESTKEY123.p8"),
+            "{:?}",
+            ui.questions
+        );
+        assert!(ui.questions[1].contains("just now"), "{:?}", ui.questions);
+        let text = ui.text();
+        assert!(text.contains("invalid vendor number"), "{text}");
+        assert!(text.contains("--profile work"), "{text}");
+        assert!(!text.contains(pem.lines().nth(1).unwrap()), "{text}");
+        let saved = s.repo.get("work").unwrap().unwrap();
+        assert_eq!(saved.vendor_number.as_deref(), Some("80000001"));
+        assert_eq!(s.store.get("work").unwrap().expose(), pem);
+        assert!(key_file.exists());
+    }
+
+    #[tokio::test]
+    async fn wizard_asks_again_after_wrong_answers_and_a_failed_check() {
+        let s = setup();
+        // Имя файла даёт неверный Key ID: проверка не пройдёт с первого раза.
+        let (key_file, _) = s.key_file("AuthKey_WRONGKEY99.p8");
+        let missing = s.dir.path().join("missing.p8");
+        let mut ui = ScriptedUi::answering(&[
+            missing.to_str().unwrap(),
+            key_file.to_str().unwrap(),
+            "nope",
+            ISSUER,
+            // Проверка не прошла: ввести снова — да (пустой ответ), Key ID, Issuer ID.
+            "",
+            "TESTKEY123",
+            ISSUER,
+            // Vendor number — нет, удалить файл — нет.
+            "n",
+            "n",
+        ]);
+        login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &Guide::none(),
+            &args(DEFAULT_PROFILE),
+        )
+        .await
+        .unwrap();
+        let text = ui.text();
+        assert!(text.contains("cannot open the key file"), "{text}");
+        assert!(text.contains("is not an Issuer ID"), "{text}");
+        assert!(text.contains("The key check failed"), "{text}");
+        assert!(text.contains("Key is valid"), "{text}");
+        let saved = s.repo.get(DEFAULT_PROFILE).unwrap().unwrap();
+        assert_eq!(saved.key_id.as_deref(), Some("TESTKEY123"));
+    }
+
+    #[tokio::test]
+    async fn wizard_gives_up_after_three_wrong_answers() {
+        let s = setup();
+        let mut ui = ScriptedUi::answering(&["/nope/1.p8", "/nope/2.p8", "/nope/3.p8"]);
+        let err = login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &Guide::none(),
+            &args(DEFAULT_PROFILE),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            format!("{err:#}").contains("cannot open the key file"),
+            "{err:#}"
+        );
+        assert_eq!(ui.questions.len(), 3, "{:?}", ui.questions);
+        assert!(!s.store.contains(DEFAULT_PROFILE).unwrap());
+    }
+
+    #[tokio::test]
+    async fn no_input_never_asks_and_lists_missing_flags() {
+        let s = setup();
+        // Терминал есть, но --no-input: ни вопросов, ни браузера.
+        let mut ui = ScriptedUi::answering(&[]);
+        let quiet = LoginArgs {
+            no_input: true,
+            ..args("ci")
+        };
+        let guide = Guide {
+            browser: crate::browser::BrowserDecision::Open,
+            downloads: None,
+        };
+        let err = login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &guide,
+            &quiet,
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("--key-file"), "{err}");
+        assert!(
+            err.contains("--issuer-id <UUID> (or --individual)"),
+            "{err}"
+        );
+        assert!(ui.questions.is_empty());
+        assert!(ui.opened.is_empty());
+
+        let (key_file, _) = s.key_file("AuthKey_TESTKEY123.p8");
+        let complete = LoginArgs {
+            key_file: Some(key_file.clone()),
+            issuer_id: Some(ISSUER.into()),
+            ..quiet
+        };
+        let mut ui = ScriptedUi::answering(&[]);
+        login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &guide,
+            &complete,
+        )
+        .await
+        .unwrap();
+        assert!(ui.questions.is_empty(), "{:?}", ui.questions);
+        assert!(ui.opened.is_empty());
+        let text = ui.text();
+        assert!(!text.contains("Step 1"), "{text}");
+        assert!(!text.contains("Next:"), "{text}");
+        assert!(text.contains("API key saved"), "{text}");
+        // Файл не трогается: вопроса об удалении нет.
+        assert!(key_file.exists());
     }
 
     #[tokio::test]
@@ -531,9 +796,16 @@ mod tests {
             key_file: Some(key_file),
             ..args("solo")
         };
-        login(&s.store, &s.repo, Some(&verifier()), &mut ui, &login_args)
-            .await
-            .unwrap();
+        login(
+            &s.store,
+            &s.repo,
+            Some(&verifier()),
+            &mut ui,
+            &Guide::none(),
+            &login_args,
+        )
+        .await
+        .unwrap();
         let saved = s.repo.get("solo").unwrap().unwrap();
         assert!(saved.individual);
         assert_eq!(saved.issuer_id, None);
@@ -552,9 +824,16 @@ mod tests {
             no_verify: true,
             ..args("solo")
         };
-        login::<FakeVerifier>(&s.store, &s.repo, None, &mut ScriptedUi::default(), &team)
-            .await
-            .unwrap();
+        login::<FakeVerifier>(
+            &s.store,
+            &s.repo,
+            None,
+            &mut ScriptedUi::default(),
+            &Guide::none(),
+            &team,
+        )
+        .await
+        .unwrap();
         let saved = s.repo.get("solo").unwrap().unwrap();
         assert!(!saved.individual);
         assert_eq!(saved.issuer_id.as_deref(), Some(ISSUER));
@@ -577,6 +856,7 @@ mod tests {
             &s.repo,
             Some(&verifier()),
             &mut ScriptedUi::default(),
+            &Guide::none(),
             &base,
         )
         .await
@@ -624,19 +904,19 @@ mod tests {
             ),
             (
                 LoginArgs {
-                    key_file: Some(s.dir.path().join("missing.p8")),
+                    key_file: Some(s.dir.path().join("AuthKey_MISSING999.p8")),
                     ..base.clone()
                 },
                 "cannot open the key file",
             ),
-            (args("ci"), "pass --key-file"),
+            (args("ci"), "missing --key-file"),
             (
                 LoginArgs {
                     key_file: Some(key_file.clone()),
                     issuer_id: None,
                     ..base.clone()
                 },
-                "pass --issuer-id <UUID> or --individual",
+                "--issuer-id <UUID> (or --individual)",
             ),
         ];
         for (case, expected) in cases {
@@ -645,6 +925,7 @@ mod tests {
                 &s.repo,
                 Some(&verifier()),
                 &mut ScriptedUi::default(),
+                &Guide::none(),
                 &case,
             )
             .await
@@ -720,9 +1001,16 @@ mod tests {
             ..args(DEFAULT_PROFILE)
         };
         let mut ui = ScriptedUi::default();
-        login(&s.store, &s.repo, Some(&api), &mut ui, &login_args)
-            .await
-            .unwrap();
+        login(
+            &s.store,
+            &s.repo,
+            Some(&api),
+            &mut ui,
+            &Guide::none(),
+            &login_args,
+        )
+        .await
+        .unwrap();
         assert!(ui.text().contains("the key sees 0 apps"), "{}", ui.text());
 
         let mut ui = ScriptedUi::default();

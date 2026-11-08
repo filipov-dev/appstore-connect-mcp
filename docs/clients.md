@@ -69,7 +69,7 @@ appstore-connect-mcp connect claude-code --toolsets apps,versions-review,metadat
 
 `connect` настраивает только Claude Code и Codex. Любой клиент, который запускает stdio MCP-серверы, подключается вручную:
 
-1. Сохраните ключ в профиль:
+1. Сохраните ключ в профиль. `appstore-connect-mcp auth login --profile cursor` проведёт по шагам; если файл и Issuer ID уже есть — передайте их флагами:
 
    ```bash
    appstore-connect-mcp auth login --profile cursor --key-file ~/Downloads/AuthKey_ABC123DEFG.p8 \

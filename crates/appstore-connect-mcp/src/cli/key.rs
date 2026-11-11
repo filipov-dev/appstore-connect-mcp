@@ -79,6 +79,11 @@ arguments, run a shell yourself, in single quotes, so that the child shell expan
     --issuer \"$APP_STORE_CONNECT_ISSUER_ID\" --wait'
   appstore-connect-mcp key exec --profile work -- fastlane ios beta
 
+On Windows there are no file modes: the file and its directory inherit the permissions of the \
+temporary folder (%TEMP%, under your user profile and closed to other users by default). \
+Signals are not forwarded there. Without sh, run PowerShell the same way and use \
+$env:APP_STORE_CONNECT_KEY_PATH inside the quotes.
+
 Never print the key: masking is a safety net against accidental output, not a security \
 boundary.";
 

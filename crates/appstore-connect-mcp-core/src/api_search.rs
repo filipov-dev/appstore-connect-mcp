@@ -305,10 +305,14 @@ pub fn search(args: &JsonObject, registry: &ToolRegistry) -> Result<String, Tool
             .then(a.2.size().cmp(&b.2.size()))
     });
     let best = scored.first().map_or(0, |s| s.0);
-    let total = scored.iter().filter(|s| s.0 == best).count();
+    // Если все слова нашлись хоть где-то — только такие записи. Иначе — лучшие по
+    // числу слов и весу: запрос из нескольких тем («release status metadata export»)
+    // должен показать инструменты каждой темы, а не одну верхнюю группу.
+    let complete = best == terms.len();
+    let total = scored.iter().filter(|s| !complete || s.0 == best).count();
     let results: Vec<Value> = scored
         .iter()
-        .filter(|s| s.0 == best)
+        .filter(|s| !complete || s.0 == best)
         .take(limit)
         .map(|(_, _, entry)| describe_entry(entry, registry))
         .collect();
@@ -317,9 +321,7 @@ pub fn search(args: &JsonObject, registry: &ToolRegistry) -> Result<String, Tool
         "matches": total,
         "results": results,
     });
-    if best < terms.len()
-        && let Value::Object(map) = &mut out
-    {
+    if !complete && let Value::Object(map) = &mut out {
         map.insert(
             "note".to_owned(),
             json!("no result contains every word of the query; these match some of them"),
@@ -616,6 +618,25 @@ mod tests {
         );
         let result = run(&registry, json!({"query": "/v1/apps/{id}"}));
         assert!(tools(&result).contains(&"get_app".to_owned()), "{result}");
+    }
+
+    #[test]
+    fn partial_matches_cover_every_topic_of_the_query() {
+        let registry = registry(AccessLevel::Read, None);
+        let result = run(
+            &registry,
+            json!({"query": "release status metadata export report download profile download composite"}),
+        );
+        let found = tools(&result);
+        for expected in [
+            "release_status",
+            "metadata_export",
+            "report_download",
+            "profile_download",
+        ] {
+            assert!(found.contains(&expected.to_owned()), "{expected}: {result}");
+        }
+        assert!(result["note"].is_string(), "{result}");
     }
 
     #[test]

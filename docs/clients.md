@@ -15,7 +15,7 @@ appstore-connect-mcp connect codex
 
 1. Если у профиля уже есть ключ в хранилище и он проходит проверку `GET /v1/apps?limit=1`, использует его без вопросов.
 2. Иначе открывает в браузере страницу ключей App Store Connect, подсказывает, как создать командный ключ ([Ключ App Store Connect API](api-key.md)), и спрашивает путь к `.p8`, Key ID и Issuer ID. По SSH, без графической сессии и с `--no-browser` ссылка только печатается. Без терминала ключ можно передать только через `--key-file`.
-3. Проверяет ключ и сохраняет его в системное хранилище, а настройки — в профиль `~/.config/appstore-connect-mcp/profiles.toml`.
+3. Проверяет ключ и сохраняет его в системное хранилище, а настройки — в профиль `~/.config/appstore-connect-mcp/profiles.toml` (в Windows — `%APPDATA%\appstore-connect-mcp\profiles.toml`).
 4. Показывает, что изменится в конфигурации клиента, и после подтверждения регистрирует сервер: в Claude Code — через `claude mcp add`, в Codex — таблицей `[mcp_servers.<имя>]` в `$CODEX_HOME/config.toml` (по умолчанию `~/.codex/config.toml`; комментарии и форматирование файла сохраняются).
 5. Если ключ читался из файла, один раз предлагает удалить этот файл (по умолчанию — нет).
 
@@ -113,6 +113,24 @@ claude mcp add --scope user appstore-connect -- "$(command -v appstore-connect-m
 # ~/.codex/config.toml
 [mcp_servers.appstore-connect]
 command = "/opt/homebrew/bin/appstore-connect-mcp"
+args = ["serve", "--profile", "default"]
+```
+
+### Windows
+
+`connect`, `auth` и `serve` работают в Windows так же, команды можно запускать из PowerShell, `cmd` или Git Bash.
+
+- **Ключ** хранится в Windows Credential Manager: общие учётные данные `<профиль>.dev.filipov.appstore-connect-mcp` (Панель управления → Диспетчер учётных данных → Учётные данные Windows). Credential Manager доступен только в сеансе, вошедшем с паролем: в SSH-сеансе со входом по ключу, в службе или задаче планировщика без сохранённого пароля Windows не даёт хранилища (ошибка «A specified logon session does not exist»). Запускайте `connect`, `auth` и MCP-клиент в обычном сеансе пользователя.
+- **Claude Code**: `connect claude-code` вызывает `claude mcp add`, поэтому команда `claude` должна быть в `PATH` (подходят и `claude.exe` из установщика Claude Code, и `claude.cmd` из npm).
+- **Codex**: `connect codex` пишет в `%USERPROFILE%\.codex\config.toml` (или в `config.toml` каталога из `CODEX_HOME`).
+- В конфигурацию клиента записывается полный путь к `appstore-connect-mcp.exe`, из которого запущен `connect`, например `C:\Users\<имя>\AppData\Local\Programs\appstore-connect-mcp\appstore-connect-mcp.exe`. Обновляйте бинарник заменой файла по тому же пути (см. [Установка](install.md#windows)), тогда `connect` повторять не нужно.
+
+Ручная регистрация в Codex в Windows (в TOML обратные косые черты внутри одинарных кавычек не экранируются):
+
+```toml
+# %USERPROFILE%\.codex\config.toml
+[mcp_servers.appstore-connect]
+command = 'C:\Users\<имя>\AppData\Local\Programs\appstore-connect-mcp\appstore-connect-mcp.exe'
 args = ["serve", "--profile", "default"]
 ```
 

@@ -46,7 +46,15 @@ APPSTORE_CONNECT_SPEC_REPORT=/tmp/asc-spec-report.json cargo build -p appstore-c
 
 ### Обновление спецификации
 
-1. Скачайте спецификацию App Store Connect API с developer.apple.com (zip или JSON) вручную: сборка и скрипт сеть не используют.
+Проверить, не выпустила ли Apple новую спецификацию:
+
+```bash
+python3 crates/appstore-connect-api/spec/spec_drift.py
+```
+
+Скрипт скачивает официальный zip с developer.apple.com во временный каталог и сравнивает SHA-256 со снимком. Код 0 — снимок актуален, 3 — есть расхождение (скрипт печатает добавленные, удалённые и ставшие устаревшими операции и новые теги без набора), 1 — спецификация недоступна. Снимок он не меняет.
+
+1. Скачайте спецификацию App Store Connect API с developer.apple.com (zip или JSON): сборка и `update_spec.py` сеть не используют.
 2. Посмотрите отчёт без изменений: добавленные, удалённые и ставшие устаревшими операции, смену пути или метода, теги без набора, пропавшие и переименованные инструменты (это ломает клиентов), ошибки генератора.
 
    ```bash
@@ -84,3 +92,32 @@ SMOKE_KEY_FILE=test-key.p8 scripts/ci/musl-smoke.sh out/appstore-connect-mcp --w
 С `--with-secret-service` скрипт (под root, через `apk` или `apt-get`) ставит D-Bus, gnome-keyring и libsecret, поднимает сессионную шину с разблокированным хранилищем и проверяет настоящий путь ключа: `auth login --no-verify`, `auth status`, MCP `initialize` и `tools/list` через stdio, `auth logout`. Тестовый ключ — сгенерированный EC P-256 в PKCS#8 PEM (например, `openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out test-key.p8`), Key ID и Issuer ID фиктивные; к App Store Connect API скрипт не обращается.
 
 Скрипты оболочки проверяются `bash -n` (или `sh -n` для POSIX) и `shellcheck`.
+
+## Windows
+
+Сборка — нативная, целевая платформа `x86_64-pc-windows-msvc`: нужны Visual Studio Build Tools с компонентом «Разработка классических приложений на C++» и `rustup`. Релизный бинарник собирается со статическим CRT, чтобы на машине пользователя не требовался Visual C++ Redistributable:
+
+```powershell
+$env:RUSTFLAGS = '-C target-feature=+crt-static'
+cargo build --release --locked --target x86_64-pc-windows-msvc -p appstore-connect-mcp
+cargo clippy --all-targets --locked --target x86_64-pc-windows-msvc -- -D warnings
+cargo test --locked --target x86_64-pc-windows-msvc
+```
+
+Те же шаги на раннере — `scripts/ci/windows-build.ps1` (без флагов — релизная сборка, `-Check` — clippy и тесты), проверка бинарника — `scripts/ci/windows-smoke.ps1 <exe>` (запуск, ключ в Credential Manager, MCP `initialize` и `tools/list`), упаковка и загрузка в релиз — `scripts/release/windows-package.ps1` и `scripts/release/windows-upload.ps1`.
+
+Ветки кода для Windows (`cfg(windows)` и `cfg(not(unix))`: временный файл `key exec`, сигналы, запуск `claude.cmd`, пути `\\?\`) компилируются только там. С macOS и Linux `cargo check --target x86_64-pc-windows-msvc` без Windows SDK не проходит: C-код `aws-lc-sys` требует заголовков Windows. Clippy можно прогнать для `x86_64-pc-windows-gnu`, взяв Zig как C-компилятор (обёртка убирает флаг `--target=…`, который cc передаёт в формате Rust):
+
+```bash
+rustup target add x86_64-pc-windows-gnu
+cat > /tmp/zcc <<'SH'
+#!/bin/sh
+for a; do shift; case "$a" in --target=*) ;; *) set -- "$@" "$a";; esac; done
+exec zig cc -target x86_64-windows-gnu "$@"
+SH
+chmod +x /tmp/zcc
+CC_x86_64_pc_windows_gnu=/tmp/zcc AR_x86_64_pc_windows_gnu="zig ar" \
+  cargo clippy --target x86_64-pc-windows-gnu --all-targets -- -D warnings
+```
+
+Тесты так не запускаются; их запускает `windows-build.ps1 -Check` на Windows.

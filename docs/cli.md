@@ -9,7 +9,7 @@
 Профиль — это один кабинет App Store Connect: ключ API (`.p8`) и его настройки.
 
 - Ключ хранится только в системном хранилище: Keychain в macOS, Credential Manager в Windows, Secret Service в Linux (GNOME Keyring, KDE Wallet, KeePassXC). Запись — сервис `dev.filipov.appstore-connect-mcp`, учётная запись — имя профиля. Файлового хранилища нет: в Linux без Secret Service команды завершаются ошибкой с подсказкой.
-- Несекретные настройки — в `~/.config/appstore-connect-mcp/profiles.toml` (в Linux — `$XDG_CONFIG_HOME/appstore-connect-mcp/`, если переменная задана; в macOS тоже `~/.config`): Key ID, Issuer ID (или `individual = true` для индивидуального ключа), номер поставщика для отчётов (`vendor_number`), MCP-клиент, в котором профиль подключён командой `connect` (`client`), и настройки доступа по умолчанию (`allow_write`, `allow_destructive`, `toolsets`, `dynamic_toolsets`).
+- Несекретные настройки — в `~/.config/appstore-connect-mcp/profiles.toml` (в Linux — `$XDG_CONFIG_HOME/appstore-connect-mcp/`, если переменная задана; в macOS тоже `~/.config`; в Windows — `%APPDATA%\appstore-connect-mcp\`): Key ID, Issuer ID (или `individual = true` для индивидуального ключа), номер поставщика для отчётов (`vendor_number`), MCP-клиент, в котором профиль подключён командой `connect` (`client`), и настройки доступа по умолчанию (`allow_write`, `allow_destructive`, `toolsets`, `dynamic_toolsets`).
 - Имя профиля — флаг `--profile`, иначе переменная окружения `APPSTORE_CONNECT_MCP_PROFILE`, иначе `default`. Сам ключ из переменных окружения и `.env` не читается.
 - Ни одна команда не выводит ключ и JWT.
 
@@ -111,7 +111,7 @@ appstore-connect-mcp connect codex --profile work --key-file ~/Downloads/AuthKey
 appstore-connect-mcp key exec [--profile <имя>] -- <команда> [аргументы...]
 ```
 
-- Ключ записывается в новый файл `AuthKey_<KEYID>.p8` с правами 0600 в новом временном каталоге с правами 0700 (такое имя файла ищут `altool` и `notarytool`).
+- Ключ записывается в новый файл `AuthKey_<KEYID>.p8` с правами 0600 в новом временном каталоге с правами 0700 (такое имя файла ищут `altool` и `notarytool`). В Windows прав Unix нет: файл и каталог наследуют права временного каталога пользователя (`%TEMP%` в его профиле, закрыт от других пользователей), сигналы команде не пересылаются; вместо `sh -c` используйте `powershell -NoProfile -Command '... $env:APP_STORE_CONNECT_KEY_PATH ...'`.
 - Команда запускается без оболочки, stdin наследуется, с переменными окружения:
 
 | Переменная | Значение |

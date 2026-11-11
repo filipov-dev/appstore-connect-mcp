@@ -68,6 +68,7 @@ const PHASED_PERCENT: [u64; 7] = [1, 2, 5, 10, 20, 50, 100];
 /// Инструменты, на которые ссылаются подсказки `next_steps`. Тест проверяет, что они есть.
 pub const REFERENCED_TOOLS: &[&str] = &[
     "create_app_store_version",
+    "update_app_store_version",
     "set_app_store_version_build",
     "update_build",
     "set_build_app_encryption_declaration",
@@ -506,6 +507,15 @@ fn field<'v>(value: &'v Value, key: &str) -> Option<&'v str> {
 
 /// Подсказки агенту: что делать дальше и каким инструментом. Ссылаться только на
 /// инструменты из [`REFERENCED_TOOLS`].
+/// Как ответить на экспортный комплаенс. `update_build` — уровень удаления: тем же
+/// инструментом сборку можно необратимо отозвать (`expired: true`), поэтому первым
+/// предлагается прикрепление декларации (уровень записи).
+const EXPORT_COMPLIANCE_HOW: &str = "attach an approved encryption declaration with \
+set_build_app_encryption_declaration (write-level), or answer usesNonExemptEncryption with \
+update_build (destructive-level: needs --allow-destructive and the user's explicit confirmation, \
+because the same tool can expire a build). To skip this step for future builds, set \
+ITSAppUsesNonExemptEncryption in the app's Info.plist";
+
 fn next_steps(
     pending: Option<&Value>,
     live: Option<&Value>,
@@ -535,12 +545,9 @@ fn next_steps(
         field(b, "internal_state") == Some("MISSING_EXPORT_COMPLIANCE")
             || field(b, "external_state") == Some("MISSING_EXPORT_COMPLIANCE")
     }) {
-        steps.push(
-            "A build is missing export compliance: answer it with update_build \
-             (usesNonExemptEncryption) or attach a declaration with \
-             set_build_app_encryption_declaration (update_build is destructive-level)."
-                .to_string(),
-        );
+        steps.push(format!(
+            "A build is missing export compliance: {EXPORT_COMPLIANCE_HOW}."
+        ));
     }
 
     let Some(pending) = pending else {
@@ -564,10 +571,44 @@ fn next_steps(
     );
 
     match build {
-        None if editable => steps.push(format!(
-            "Version {version} has no build selected: pick a VALID build from \
-             testflight_builds and attach it with set_app_store_version_build."
-        )),
+        // App Store Connect даёт выбрать только сборку с той же строкой версии
+        // (CFBundleShortVersionString) и не просроченную.
+        None if editable => {
+            let fitting = builds.iter().find(|b| {
+                field(b, "app_version") == Some(version)
+                    && field(b, "processing_state") == Some("VALID")
+                    && b.get("expired").and_then(Value::as_bool) != Some(true)
+            });
+            if let Some(b) = fitting {
+                steps.push(format!(
+                    "Version {version} has no build selected: attach build {} (id {}) with \
+                     set_app_store_version_build.",
+                    field(b, "version").unwrap_or("?"),
+                    field(b, "id").unwrap_or("?"),
+                ));
+            } else {
+                let mut others: Vec<&str> = Vec::new();
+                for v in builds.iter().filter_map(|b| field(b, "app_version")) {
+                    if !others.contains(&v) {
+                        others.push(v);
+                    }
+                }
+                let seen = if others.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (they have versions {})", others.join(", "))
+                };
+                steps.push(format!(
+                    "Version {version} has no build selected, and none of the latest builds \
+                     shown{seen} is a VALID, unexpired build of version {version}: only a build \
+                     with the same version string can be attached. Upload a build of version \
+                     {version} (build_upload, or Xcode / Transporter), or change the version \
+                     string of this App Store version to the version of an existing build with \
+                     update_app_store_version (versionString), then attach the build with \
+                     set_app_store_version_build."
+                ));
+            }
+        }
         Some(b) if field(b, "processing_state").is_some_and(|s| s != "VALID") => {
             steps.push(format!(
                 "The build selected for version {version} is not VALID yet (processing_state \
@@ -583,8 +624,7 @@ fn next_steps(
         {
             steps.push(format!(
                 "Export compliance of the build selected for version {version} is not answered: \
-                 use update_build (usesNonExemptEncryption) or \
-                 set_build_app_encryption_declaration."
+                 {EXPORT_COMPLIANCE_HOW}."
             ));
         }
         _ => {}
@@ -621,8 +661,8 @@ fn next_steps(
             }
         }
         "WAITING_FOR_EXPORT_COMPLIANCE" => steps.push(format!(
-            "Version {version} waits for export compliance: answer it for the selected build \
-             with update_build (usesNonExemptEncryption) or set_build_app_encryption_declaration."
+            "Version {version} waits for export compliance of the selected build: \
+             {EXPORT_COMPLIANCE_HOW}."
         )),
         "READY_FOR_REVIEW" | "WAITING_FOR_REVIEW" | "IN_REVIEW" => steps.push(format!(
             "Version {version} is with App Review ({state}): nothing to do, check again later."

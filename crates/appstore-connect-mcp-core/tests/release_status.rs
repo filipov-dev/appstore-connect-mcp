@@ -395,13 +395,57 @@ async fn pending_version_without_build_suggests_selecting_one() {
     assert_eq!(out["review"]["items_count"], 0);
     let steps = out["next_steps"].to_string();
     assert!(steps.contains("has no build selected"), "{steps}");
+    // Единственная сборка — версии 2.4.0: к версии 1.0 её привязать нельзя.
+    assert!(steps.contains("none of the latest builds"), "{steps}");
+    assert!(steps.contains("they have versions 2.4.0"), "{steps}");
+    assert!(steps.contains("update_app_store_version"), "{steps}");
     assert!(steps.contains("set_app_store_version_build"), "{steps}");
     assert!(
-        steps.contains("set_build_app_encryption_declaration"),
+        steps.contains("set_build_app_encryption_declaration (write-level)"),
         "{steps}"
     );
+    // update_build может отозвать сборку: подсказка говорит, что нужен уровень удаления.
+    assert!(
+        steps.contains("update_build (destructive-level: needs --allow-destructive"),
+        "{steps}"
+    );
+    assert!(steps.contains("ITSAppUsesNonExemptEncryption"), "{steps}");
     assert!(steps.contains("draft review submission"), "{steps}");
     assert!(steps.contains("--allow-destructive"), "{steps}");
+}
+
+#[tokio::test]
+async fn pending_version_without_build_names_the_matching_build() {
+    let server = MockServer::start().await;
+    mount(&server, &format!("/v1/apps/{APP}"), app_body()).await;
+    mount(
+        &server,
+        &format!("/v1/apps/{APP}/appStoreVersions"),
+        json!({"data": [version("v-next", "2.4.0", "PREPARE_FOR_SUBMISSION", "2026-11-01T00:00:00Z", None, None)]}),
+    )
+    .await;
+    mount(&server, "/v1/reviewSubmissions", empty_list()).await;
+    mount(
+        &server,
+        "/v1/builds",
+        builds_body(vec![build(
+            "b-7",
+            "7",
+            "VALID",
+            "2026-11-02T00:00:00Z",
+            "bd-7",
+            "IN_BETA_TESTING",
+            "READY_FOR_BETA_SUBMISSION",
+        )]),
+    )
+    .await;
+    let ctx = context(&server);
+
+    let out = call(&ctx, json!({"app_id": APP})).await.unwrap();
+
+    let steps = out["next_steps"].to_string();
+    assert!(steps.contains("attach build 7 (id b-7)"), "{steps}");
+    assert!(!steps.contains("none of the latest builds"), "{steps}");
 }
 
 #[tokio::test]

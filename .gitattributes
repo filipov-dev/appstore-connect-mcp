@@ -1,0 +1,4 @@
+# Снимок спецификации сверяется с SHA-256 в build.rs побайтно: Git не должен
+# менять в нём концы строк при checkout (core.autocrlf на Windows).
+crates/appstore-connect-api/spec/openapi.oas.json -text
+crates/appstore-connect-api/spec/openapi.oas.json.sha256 -text

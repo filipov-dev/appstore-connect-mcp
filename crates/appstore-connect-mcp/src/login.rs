@@ -321,7 +321,8 @@ fn age(since: SystemTime, now: SystemTime) -> String {
 /// Путь для показа: домашний каталог — как `~`.
 fn short_path(path: &Path) -> String {
     match dirs::home_dir().and_then(|home| path.strip_prefix(home).ok().map(Path::to_path_buf)) {
-        Some(rest) => format!("~/{}", rest.display()),
+        // Разделитель платформы: на Windows без него вышло бы `~/Downloads\AuthKey_X.p8`.
+        Some(rest) => format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()),
         None => path.display().to_string(),
     }
 }
@@ -766,9 +767,10 @@ mod tests {
             "/tmp/AuthKey_X.p8"
         );
         if let Some(home) = dirs::home_dir() {
+            let sep = std::path::MAIN_SEPARATOR;
             assert_eq!(
                 short_path(&home.join("Downloads").join("AuthKey_X.p8")),
-                "~/Downloads/AuthKey_X.p8"
+                format!("~{sep}Downloads{sep}AuthKey_X.p8")
             );
         }
     }

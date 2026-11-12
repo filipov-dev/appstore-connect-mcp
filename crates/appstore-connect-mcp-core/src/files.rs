@@ -245,6 +245,12 @@ impl FilePolicy {
         if path.trim().is_empty() {
             return Err(FilePolicyError("file path is empty".into()));
         }
+        // На Windows корни и рабочий каталог канонические, то есть verbatim (`\\?\C:\…`),
+        // а в verbatim-пути `/` не разделитель: `sub/../x`, присоединённый к корню, стал бы
+        // одним компонентом, и проверки `..` и родительского каталога его бы не видели.
+        // Windows и так принимает `/` как разделитель, поэтому смысл пути не меняется.
+        #[cfg(windows)]
+        let path = &path.replace('/', "\\");
         let path = Path::new(path);
         if path.is_absolute() {
             return Ok(path.to_path_buf());
@@ -447,6 +453,9 @@ mod tests {
         assert!(f.policy.check_write(&s(&f.outside.join("x"))).is_err());
         assert!(f.policy.check_write(&s(&f.root.join("missing/x"))).is_err());
         assert!(f.policy.check_write(&s(&f.root.join("sub/.."))).is_err());
+        // Относительный путь с `/` и `..`: на Windows он не должен стать одним именем
+        // внутри verbatim-корня.
+        assert!(f.policy.check_write("sub/../../outside/z").is_err());
     }
 
     #[test]
@@ -466,8 +475,11 @@ mod tests {
             .unwrap_err();
         assert!(err.0.contains("outside"), "{err}");
         assert!(!f.outside.join("x").exists());
+        // На Windows `join` к verbatim-корню сам сворачивает `..`, и путь отклоняет
+        // проверка корней, а не проверка `..`: важно, что каталог не создан.
         let err = f.policy.check_write_dir("sub/../../outside/y").unwrap_err();
-        assert!(err.0.contains("`..`"), "{err}");
+        assert!(err.0.contains("`..`") || err.0.contains("outside"), "{err}");
+        assert!(!f.outside.join("y").exists());
         assert!(f.policy.check_write_dir("sub/file.txt").is_err());
     }
 

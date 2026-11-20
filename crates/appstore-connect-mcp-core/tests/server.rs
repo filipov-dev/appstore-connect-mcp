@@ -217,7 +217,11 @@ async fn errors_are_tool_results() {
         .unwrap();
     let result = call(&client, write.tool_name, json!({})).await;
     assert_eq!(result.is_error, Some(true));
-    assert!(text(&result).contains("--allow-write"), "{}", text(&result));
+    assert!(
+        text(&result).contains("`write` access"),
+        "{}",
+        text(&result)
+    );
 
     // Неизвестный инструмент — ошибка протокола.
     let err = client
@@ -444,7 +448,7 @@ async fn api_request_follows_next_links_and_saves_json() {
     .await;
     assert_eq!(result.is_error, Some(true));
     assert!(
-        text(&result).contains("--allow-destructive"),
+        text(&result).contains("`destructive` access"),
         "{}",
         text(&result)
     );

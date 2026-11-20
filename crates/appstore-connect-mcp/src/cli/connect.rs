@@ -2,9 +2,10 @@
 //!
 //! Сценарий: ключ профиля (сохранённый рабочий ключ используется как есть; иначе —
 //! страница ключей App Store Connect с подсказкой, путь к `.p8`, Key ID, Issuer ID,
-//! проверка `GET /v1/apps?limit=1`, ключ в системное хранилище) → настройки доступа в
-//! `profiles.toml` → запись сервера в конфигурацию клиента после подтверждения → в конце,
-//! один раз, предложение удалить исходный файл ключа.
+//! проверка `GET /v1/apps?limit=1`, ключ в системное хранилище) → настройки в
+//! `profiles.toml` (права — только если заданы флаги; на macOS повышение прав одобряется
+//! Touch ID или паролем) → запись сервера в конфигурацию клиента после подтверждения, без
+//! флагов доступа → в конце, один раз, предложение удалить исходный файл ключа.
 //!
 //! Ключ не проходит через агента и не попадает ни в аргументы, ни в конфигурацию клиента:
 //! клиент получает только команду `appstore-connect-mcp serve --profile <профиль> ...`.
@@ -16,11 +17,13 @@ use appstore_connect_api::ApiKey;
 use appstore_connect_api::auth::{AuthError, KeyStore, KeyringStore};
 use appstore_connect_api::spec::{find_toolset, toolsets};
 use clap::Args;
+use mcp_kit::approval::{self, ApprovalStore, Presence};
+use mcp_kit::{AccessLevel, ProfileAccess};
 
 use super::ProfileArg;
 use crate::clients::claude::{self, CommandRunner, SystemRunner};
 use crate::clients::{
-    ClientKind, Scope, ServerSpec, codex, default_server_name, long_name_warning,
+    ClientKind, EXE_STEM, Scope, ServerSpec, codex, default_server_name, long_name_warning,
 };
 use crate::login::{
     Guide, KeyInput, NewKey, offer_to_delete_key_file, offer_vendor_number, remember_key,
@@ -45,7 +48,10 @@ a working key, it is reused: re-running connect only changes the settings and th
 registration. Pass --key-file to replace the stored key.
 
 The client config gets only the command `appstore-connect-mcp serve --profile <profile> ...` \
-with the access flags; never the key. The settings are also saved in the profile.
+without access flags; never the key. The access is a setting of the profile: --allow-write and \
+--allow-destructive change it (without them the profile keeps its access, read-only for a new \
+profile), and `appstore-connect-mcp ui` changes it later. On macOS, raising the access asks \
+for Touch ID or the macOS password; access that is not approved does not take effect.
 
 One profile is one App Store Connect account. The server name in the client is \
 appstore-connect for the default profile and asc-<profile> for others, so that tool names \
@@ -91,11 +97,13 @@ pub struct ConnectArgs {
     /// Vendor number for sales and finance reports (Payments and Financial Reports).
     #[arg(long, value_name = "NUMBER")]
     pub vendor_number: Option<String>,
-    /// Allow tools that create or modify data in App Store Connect.
+    /// Set the access of the profile to write: tools that create or modify data in App Store
+    /// Connect.
     #[arg(long)]
     pub allow_write: bool,
-    /// Allow tools with irreversible or user-visible effects: deletions, submissions for
-    /// review, releases, prices, users and roles (implies --allow-write).
+    /// Set the access of the profile to destructive: also tools with irreversible or
+    /// user-visible effects: deletions, submissions for review, releases, prices, users and
+    /// roles (implies --allow-write).
     #[arg(long)]
     pub allow_destructive: bool,
     /// Comma-separated toolsets to enable (passed to `serve --toolsets`). Default: the
@@ -143,7 +151,10 @@ pub async fn run(args: ConnectArgs) -> anyhow::Result<()> {
         ClientKind::ClaudeCode => PathBuf::new(),
     };
     let verifier = (!args.no_verify).then(ApiVerifier::new).transpose()?;
+    let approvals = approval::platform_store(EXE_STEM);
+    let presence = approval::platform_presence();
     let mut env = ConnectEnv {
+        approval: approvals.as_deref().zip(presence.as_deref()),
         store: &KeyringStore,
         repo: &ProfileRepo::open_default()?,
         verifier: verifier.as_ref(),
@@ -158,6 +169,8 @@ pub async fn run(args: ConnectArgs) -> anyhow::Result<()> {
 
 /// Зависимости `connect`; в тестах подменяются хранилищем в памяти и временными каталогами.
 pub struct ConnectEnv<'a, V> {
+    /// Одобрение прав (macOS); `None` — платформа без одобрения.
+    pub approval: Option<(&'a dyn ApprovalStore, &'a dyn Presence)>,
     pub store: &'a dyn KeyStore,
     pub repo: &'a ProfileRepo,
     /// Проверка ключа; `None` — `--no-verify`.
@@ -218,12 +231,7 @@ pub async fn connect<V: KeyVerifier>(
         .name
         .clone()
         .unwrap_or_else(|| default_server_name(profile));
-    let access = ProfileSettings {
-        allow_write: args.allow_write,
-        allow_destructive: args.allow_destructive,
-        ..Default::default()
-    }
-    .normalized();
+    let requested_level = AccessLevel::requested_by_flags(args.allow_write, args.allow_destructive);
     let dynamic_toolsets = !args.no_dynamic_toolsets;
     let spec = ServerSpec::new(
         &name,
@@ -232,9 +240,10 @@ pub async fn connect<V: KeyVerifier>(
         &ProfileSettings {
             toolsets: toolsets.clone(),
             dynamic_toolsets,
-            ..access.clone()
+            ..Default::default()
         },
     )?;
+    let approval = env.approval;
     let mut settings = env.repo.get(profile)?.unwrap_or_default();
     match client {
         ClientKind::ClaudeCode => claude::ensure_available(env.runner)?,
@@ -270,8 +279,9 @@ pub async fn connect<V: KeyVerifier>(
         offer_vendor_number(ui, &env.guide, &mut settings);
     }
     settings.client = Some(client.name().to_owned());
-    settings.allow_write = access.allow_write;
-    settings.allow_destructive = access.allow_destructive;
+    if let Some(level) = requested_level {
+        change_access(ui, approval, profile, &mut settings, level);
+    }
     settings.toolsets = toolsets;
     settings.dynamic_toolsets = dynamic_toolsets;
     env.repo.upsert(profile, settings)?;
@@ -305,6 +315,35 @@ pub async fn connect<V: KeyVerifier>(
         offer_to_delete_key_file(ui, &new_key.file);
     }
     Ok(())
+}
+
+/// Меняет уровень доступа профиля (каталоги профиля остаются). На macOS повышение сначала
+/// одобряется владельцем; отказ не останавливает `connect`: профиль сохраняет прежние права.
+fn change_access(
+    ui: &mut dyn Ui,
+    approval: Option<(&dyn ApprovalStore, &dyn Presence)>,
+    profile: &str,
+    settings: &mut ProfileSettings,
+    level: AccessLevel,
+) {
+    let before = settings.access();
+    let access = ProfileAccess::new(level, before.allow_path.clone());
+    let what = format!("{EXE_STEM} profile \"{profile}\"");
+    match approval::save_access_with(approval, profile, &what, &access, |access| {
+        settings.set_access(access);
+        Ok(())
+    }) {
+        Ok(saved) if saved.prompted => ui.say(&format!(
+            "Access `{}` approved on this Mac.",
+            saved.access.summary()
+        )),
+        Ok(_) => {}
+        Err(err) => ui.say(&format!(
+            "The access was not changed: {err}. The profile keeps `{}` access; change it later \
+             with `appstore-connect-mcp ui --profile {profile}`.",
+            before.summary()
+        )),
+    }
 }
 
 /// Ключ профиля: рабочий сохранённый используется как есть, иначе принимается новый.
@@ -384,6 +423,7 @@ mod tests {
 
     use appstore_connect_api::PrivateKeyPem;
     use appstore_connect_api::auth::MemoryStore;
+    use mcp_kit::approval::testing::{FakePresence, MemoryStore as MemoryApprovals};
 
     use super::*;
     use crate::browser::{BrowserDecision, SkipReason};
@@ -409,6 +449,8 @@ mod tests {
         browser: BrowserDecision,
         /// Каталог загрузок мастера; `None` — файл не ищется.
         downloads: Option<PathBuf>,
+        /// Одобрение прав, как на macOS; `None` — как на Linux и Windows.
+        approval: Option<(MemoryApprovals, FakePresence)>,
     }
 
     impl Fixture {
@@ -426,6 +468,7 @@ mod tests {
                 codex_home: dir.path().join("codex"),
                 browser: BrowserDecision::Skip(SkipReason::Flag),
                 downloads: None,
+                approval: None,
                 dir,
             }
         }
@@ -466,7 +509,12 @@ mod tests {
         }
 
         async fn connect(&mut self, args: &ConnectArgs) -> anyhow::Result<()> {
+            let approval = self
+                .approval
+                .as_ref()
+                .map(|(store, presence)| (store as &dyn ApprovalStore, presence as &dyn Presence));
             let mut env = ConnectEnv {
+                approval,
                 store: &self.store,
                 repo: &self.repo,
                 verifier: (!self.no_verify).then_some(&self.verifier),
@@ -562,7 +610,6 @@ mod tests {
                 "serve",
                 "--profile",
                 "default",
-                "--allow-write",
                 "--toolsets",
                 "apps",
                 "--dynamic-toolsets"
@@ -628,9 +675,7 @@ mod tests {
         assert!(fx.codex_config().unwrap().contains(&toml_args(&[
             "serve",
             "--profile",
-            "default",
-            "--allow-write",
-            "--allow-destructive"
+            "default"
         ])));
 
         // Ещё раз с --yes: без вопросов, конфиг не меняется.
@@ -738,14 +783,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn access_flag_combinations() {
-        let cases: [(bool, bool, &[&str]); 4] = [
-            (false, false, &[]),
-            (true, false, &["--allow-write"]),
-            (false, true, &["--allow-write", "--allow-destructive"]),
-            (true, true, &["--allow-write", "--allow-destructive"]),
-        ];
-        for (write, destructive, flags) in cases {
+    async fn access_flags_change_the_profile_not_the_registration() {
+        let cases = [(false, false), (true, false), (false, true), (true, true)];
+        for (write, destructive) in cases {
             let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
             let mut args = args(ClientKind::Codex);
             args.allow_write = write;
@@ -757,12 +797,64 @@ mod tests {
             assert_eq!(settings.allow_write, write || destructive);
             assert_eq!(settings.allow_destructive, destructive);
 
-            let mut expected = vec!["serve", "--profile", "default"];
-            expected.extend_from_slice(flags);
-            expected.push("--dynamic-toolsets");
             let config = fx.codex_config().unwrap();
-            assert!(config.contains(&toml_args(&expected)), "{config}");
+            assert!(
+                config.contains(&toml_args(&[
+                    "serve",
+                    "--profile",
+                    "default",
+                    "--dynamic-toolsets"
+                ])),
+                "{config}"
+            );
         }
+
+        // Без флагов права профиля не меняются.
+        let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
+        let mut settings = fx.settings(DEFAULT_PROFILE);
+        settings.allow_write = true;
+        fx.repo.upsert(DEFAULT_PROFILE, settings).unwrap();
+        let mut args = args(ClientKind::Codex);
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        assert!(fx.settings(DEFAULT_PROFILE).allow_write);
+    }
+
+    #[tokio::test]
+    async fn raising_access_needs_approval_on_macos() {
+        let mut fx = Fixture::new().with_stored_key(DEFAULT_PROFILE);
+        fx.approval = Some((MemoryApprovals::default(), FakePresence::new(false)));
+        let mut args = args(ClientKind::Codex);
+        args.allow_destructive = true;
+        args.yes = true;
+        fx.connect(&args).await.unwrap();
+        // Отказ: права прежние, но профиль и регистрация сохранены.
+        let settings = fx.settings(DEFAULT_PROFILE);
+        assert!(!settings.allow_write && !settings.allow_destructive);
+        let text = fx.ui.text();
+        assert!(text.contains("The access was not changed"), "{text}");
+        assert!(
+            text.contains("appstore-connect-mcp ui --profile default"),
+            "{text}"
+        );
+        assert!(fx.codex_config().is_some());
+
+        fx.approval = Some((MemoryApprovals::default(), FakePresence::new(true)));
+        fx.ui = ScriptedUi::default();
+        fx.connect(&args).await.unwrap();
+        let settings = fx.settings(DEFAULT_PROFILE);
+        assert!(settings.allow_destructive);
+        let (approvals, presence) = fx.approval.as_ref().unwrap();
+        assert_eq!(presence.asked.get(), 1);
+        assert_eq!(
+            approvals.load(DEFAULT_PROFILE).unwrap().unwrap().level,
+            AccessLevel::Destructive
+        );
+        assert!(
+            fx.ui.text().contains("approved on this Mac"),
+            "{}",
+            fx.ui.text()
+        );
     }
 
     #[tokio::test]

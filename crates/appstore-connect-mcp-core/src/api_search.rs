@@ -26,7 +26,7 @@ use crate::api_request::API_REQUEST_TOOL;
 use crate::composite::CompositeTool;
 use crate::error::ToolError;
 use crate::registry::{
-    ToolRegistry, access_flag, access_name, annotations, composite_tool, operation_tool,
+    ToolRegistry, access_hint, access_name, annotations, composite_tool, operation_tool,
 };
 use crate::request::kind;
 
@@ -482,9 +482,9 @@ fn describe_entry(entry: &Entry<'_>, registry: &ToolRegistry) -> Value {
             }
             if !registry.max_access().allows(op.access) {
                 status.push_str(&format!(
-                    ". It needs {} access: ask the user to restart the server with {}",
+                    ". It needs {} access: ask the user to {}",
                     access_name(op.access),
-                    access_flag(op.access)
+                    access_hint(op.access)
                 ));
             }
             json!({
@@ -672,7 +672,7 @@ mod tests {
             .find(|r| r["tool"] == "create_beta_group")
             .unwrap();
         let status = entry["status"].as_str().unwrap();
-        assert!(status.contains("--allow-write"), "{status}");
+        assert!(status.contains("`write` access"), "{status}");
 
         let result = run(&registry, json!({"query": "list sales reports"}));
         let entry = result["results"]
@@ -718,7 +718,12 @@ mod tests {
     fn describes_one_tool_and_filters_by_toolset() {
         let registry = registry(AccessLevel::Read, None);
         let result = run(&registry, json!({"tool_name": "create_beta_group"}));
-        assert!(result["status"].as_str().unwrap().contains("--allow-write"));
+        assert!(
+            result["status"]
+                .as_str()
+                .unwrap()
+                .contains("`write` access")
+        );
         assert!(result["input_schema"]["properties"].get("body").is_some());
         assert_eq!(result["method"], "POST");
 

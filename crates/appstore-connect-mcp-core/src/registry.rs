@@ -140,12 +140,11 @@ impl ToolRegistry {
                     tool.name.clone(),
                     format!(
                         "custom tool `{}` is disabled: it {} data in App Store Connect and the \
-                         server runs with {} access. Ask the user to restart the server with {} \
-                         if this is intended",
+                         server runs with {} access. Ask the user to {} if this is intended",
                         tool.name,
                         access_verb(op.access),
                         access_name(options.max_access),
-                        access_flag(op.access),
+                        access_hint(op.access),
                     ),
                 );
             } else {
@@ -349,11 +348,10 @@ impl ToolRegistry {
         if !self.max_access.allows(access) {
             return Some(format!(
                 "tool `{name}` is disabled: it {} data in App Store Connect and the server runs \
-                 with {} access. Ask the user to restart the server with {} if this change is \
-                 intended",
+                 with {} access. Ask the user to {} if this change is intended",
                 access_verb(access),
                 access_name(self.max_access),
-                access_flag(access),
+                access_hint(access),
             ));
         }
         if !self.toolset_enabled(toolset) {
@@ -619,12 +617,17 @@ pub fn access_name(access: AccessLevel) -> &'static str {
     }
 }
 
-/// Флаг сервера, который включает уровень доступа `access`.
-pub fn access_flag(access: AccessLevel) -> &'static str {
+/// Что пользователь делает, чтобы включить уровень `access`: права — настройка профиля
+/// (флаги регистрации их не расширяют), на macOS повышение ещё и одобряется Touch ID.
+/// Фраза продолжает «Ask the user to …».
+pub fn access_hint(access: AccessLevel) -> String {
     match access {
-        AccessLevel::Read => "no extra flag",
-        AccessLevel::Write => "--allow-write",
-        AccessLevel::Destructive => "--allow-destructive",
+        AccessLevel::Read => "keep the read-only access".to_owned(),
+        level => format!(
+            "allow `{}` access for the server's profile with `appstore-connect-mcp ui` and \
+             restart the MCP client",
+            access_name(level)
+        ),
     }
 }
 
@@ -805,13 +808,13 @@ mod tests {
             .find(|op| op.access == AccessLevel::Write)
             .unwrap();
         let reason = read.unavailable_reason(write_op.tool_name).unwrap();
-        assert!(reason.contains("--allow-write"), "{reason}");
+        assert!(reason.contains("`write` access"), "{reason}");
         let delete_op = operations()
             .iter()
             .find(|op| op.access == AccessLevel::Destructive)
             .unwrap();
         let reason = read.unavailable_reason(delete_op.tool_name).unwrap();
-        assert!(reason.contains("--allow-destructive"), "{reason}");
+        assert!(reason.contains("`destructive` access"), "{reason}");
         assert!(read.unavailable_reason("get_app").is_none());
         assert!(read.unavailable_reason("no_such_tool").is_none());
 
@@ -876,7 +879,7 @@ mod tests {
         assert!(
             read.unavailable_reason("test_write")
                 .unwrap()
-                .contains("--allow-write")
+                .contains("appstore-connect-mcp ui")
         );
 
         let no_files = ToolRegistry::new(&ServerOptions {

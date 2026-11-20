@@ -653,7 +653,7 @@ async fn missing_locales_are_deleted_only_with_destructive_access() {
     )
     .await
     .unwrap_err();
-    assert!(err.contains("--allow-destructive"), "{err}");
+    assert!(err.contains("`destructive` access"), "{err}");
     assert_eq!(server.received_requests().await.unwrap().len(), before);
 
     // Пробный прогон показывает удаления и без уровня destructive.

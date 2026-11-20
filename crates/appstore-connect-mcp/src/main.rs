@@ -27,19 +27,25 @@ enum Command {
     /// Manage the App Store Connect API keys of profiles (stored in the system keychain).
     #[command(subcommand)]
     Auth(cli::auth::AuthCommand),
+    /// Call a tool of the server from the console, with the access of the profile; without
+    /// a tool, list the tools.
+    Call(cli::call::CallCommand),
     /// Register the server in an MCP client (Claude Code, Codex), storing the API key of the
     /// profile first if needed.
     Connect(cli::connect::ConnectArgs),
     /// Use the stored API key with other tools without revealing it.
     #[command(subcommand)]
     Key(cli::key::KeyCommand),
-    /// Run the MCP server over stdio (read-only unless --allow-write is given).
+    /// Run the MCP server over stdio with the access of the profile (read-only by default).
     Serve(cli::serve::ServeArgs),
     /// List the toolsets with the number of tools per access level.
     Toolsets(cli::toolsets::ToolsetsArgs),
     /// List and validate custom tools (tools.toml).
     #[command(subcommand)]
     Tools(cli::tools::ToolsCommand),
+    /// Interactive view of the profiles: settings, access and its approval, registrations
+    /// in MCP clients, what the key can see, and the tools.
+    Ui(cli::tui::UiArgs),
     /// Internal: evaluate one `jq` filter for `serve` (JSON on stdin and stdout).
     #[command(name = "jq-worker", hide = true)]
     JqWorker,
@@ -51,12 +57,15 @@ async fn main() -> anyhow::Result<ExitCode> {
     let _ = appstore_connect_mcp_core::appstore_connect_api::spec::operations().len();
     match Cli::parse().command {
         Command::Auth(command) => cli::auth::run(command).await.map(|()| ExitCode::SUCCESS),
+        // Код завершения `call` — 1, если инструмент вернул ошибку.
+        Command::Call(args) => cli::call::run(args).await,
         Command::Connect(args) => cli::connect::run(args).await.map(|()| ExitCode::SUCCESS),
         // Код завершения `key exec` — код дочерней команды.
         Command::Key(command) => cli::key::run(command).await,
         Command::Serve(args) => cli::serve::run(args).await.map(|()| ExitCode::SUCCESS),
         Command::Toolsets(args) => cli::toolsets::run(args).map(|()| ExitCode::SUCCESS),
         Command::Tools(command) => cli::tools::run(command).map(|()| ExitCode::SUCCESS),
+        Command::Ui(args) => cli::tui::run(args).await.map(|()| ExitCode::SUCCESS),
         Command::JqWorker => cli::jq_worker::run().map(|()| ExitCode::SUCCESS),
     }
 }

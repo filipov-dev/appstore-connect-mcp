@@ -406,12 +406,12 @@ async fn pending_version_without_build_suggests_selecting_one() {
     );
     // update_build может отозвать сборку: подсказка говорит, что нужен уровень удаления.
     assert!(
-        steps.contains("update_build (destructive-level: needs --allow-destructive"),
+        steps.contains("update_build (destructive-level: needs destructive access"),
         "{steps}"
     );
     assert!(steps.contains("ITSAppUsesNonExemptEncryption"), "{steps}");
     assert!(steps.contains("draft review submission"), "{steps}");
-    assert!(steps.contains("--allow-destructive"), "{steps}");
+    assert!(steps.contains("needs destructive access"), "{steps}");
 }
 
 #[tokio::test]

@@ -785,13 +785,15 @@ pub fn server_instructions(
         AccessLevel::Read => {
             "This server is read-only: only tools that read data are available. Tools that \
              create or change data (versions, metadata, TestFlight groups and testers, review \
-             submissions, prices) are enabled when the user starts the server with \
-             --allow-write, and tools that delete data with --allow-destructive. If a task \
-             needs them, ask the user instead of looking for workarounds."
+             submissions, prices) are enabled when the user allows `write` access for the \
+             server's profile, and tools that delete data with `destructive` access (the user \
+             does it with `appstore-connect-mcp ui`, then restarts the client). If a task needs \
+             them, ask the user instead of looking for workarounds."
         }
         AccessLevel::Write => {
             "This server can read, create and change data, but not delete it: deleting tools \
-             need the user to start the server with --allow-destructive. Changes are visible \
+             need `destructive` access for the server's profile (`appstore-connect-mcp ui`). \
+             Changes are visible \
              in App Store Connect right away, and submitting for review or releasing affects \
              real users: confirm such changes with the user when they were not explicitly \
              requested."
@@ -948,7 +950,7 @@ mod tests {
         let files = FilePolicy::new(&[]).unwrap();
         let read = instructions(&ServerOptions::default(), &files);
         assert!(read.contains("(read-only access)"), "{read}");
-        assert!(read.contains("--allow-write") && read.contains("--allow-destructive"));
+        assert!(read.contains("`write` access") && read.contains("`destructive` access"));
         assert!(read.contains("allowed directories: none"), "{read}");
         assert!(
             read.contains("Enabled toolsets: apps, versions-review, builds, testflight;"),

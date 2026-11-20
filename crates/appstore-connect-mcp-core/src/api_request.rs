@@ -33,7 +33,7 @@ use serde_json::{Value, json};
 use crate::error::ToolError;
 use crate::files::FilePolicy;
 use crate::jq::add_jq_argument;
-use crate::registry::{access_flag, access_name, access_verb, annotations};
+use crate::registry::{access_hint, access_name, access_verb, annotations};
 use crate::request::{SAVE_TO_ARG, kind, save_to_path};
 use crate::routes::{RouteMatch, route};
 
@@ -230,13 +230,13 @@ pub fn prepare(
     if !max_access.allows(route.access) {
         return Err(ToolError::new(format!(
             "`{} {}` {} data in App Store Connect and needs {} access, but the server runs with \
-             {} access. Ask the user to restart the server with {} if this change is intended",
+             {} access. Ask the user to {} if this change is intended",
             method.as_str(),
             request.path,
             access_verb(route.access),
             access_name(route.access),
             access_name(max_access),
-            access_flag(route.access),
+            access_hint(route.access),
         )));
     }
 
@@ -540,7 +540,7 @@ mod tests {
             AccessLevel::Read,
         )
         .unwrap_err();
-        assert!(err.message().contains("--allow-write"), "{err}");
+        assert!(err.message().contains("`write` access"), "{err}");
         assert!(
             prepare_with(
                 json!({"method": "POST", "path": "/v1/betaGroups", "body": {"data": {}}}),
@@ -553,14 +553,14 @@ mod tests {
             AccessLevel::Write,
         )
         .unwrap_err();
-        assert!(err.message().contains("--allow-destructive"), "{err}");
+        assert!(err.message().contains("`destructive` access"), "{err}");
         // Неизвестный путь — по методу.
         let err = prepare_with(
             json!({"method": "DELETE", "path": "/v1/unknownThings/1"}),
             AccessLevel::Write,
         )
         .unwrap_err();
-        assert!(err.message().contains("--allow-destructive"), "{err}");
+        assert!(err.message().contains("`destructive` access"), "{err}");
         // Исключённая операция чтения доступна.
         assert!(
             prepare_with(

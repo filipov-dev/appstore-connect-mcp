@@ -512,7 +512,7 @@ fn field<'v>(value: &'v Value, key: &str) -> Option<&'v str> {
 /// предлагается прикрепление декларации (уровень записи).
 const EXPORT_COMPLIANCE_HOW: &str = "attach an approved encryption declaration with \
 set_build_app_encryption_declaration (write-level), or answer usesNonExemptEncryption with \
-update_build (destructive-level: needs --allow-destructive and the user's explicit confirmation, \
+update_build (destructive-level: needs destructive access and the user's explicit confirmation, \
 because the same tool can expire a build). To skip this step for future builds, set \
 ITSAppUsesNonExemptEncryption in the app's Info.plist";
 
@@ -523,7 +523,7 @@ fn next_steps(
     builds: &[Value],
 ) -> Vec<String> {
     let mut steps = Vec::new();
-    let destructive = "destructive-level: needs --allow-destructive and the user's explicit \
+    let destructive = "destructive-level: needs destructive access and the user's explicit \
                        confirmation";
 
     if builds.is_empty() {

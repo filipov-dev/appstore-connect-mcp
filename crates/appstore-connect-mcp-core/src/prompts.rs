@@ -61,8 +61,9 @@ fn required<'a>(args: &'a BTreeMap<String, String>, name: &str) -> &'a str {
 
 const DYNAMIC_NOTE: &str = "If a tool below is not available, the server may run with dynamic \
 toolsets: call `list_toolsets` and turn on the needed toolsets with `enable_toolset`. If a \
-tool is above the server's access level, tell the user which flag enables it \
-(`--allow-write` or `--allow-destructive`) instead of working around it with `api_request`.";
+tool is above the server's access level, tell the user which access it needs (write or \
+destructive, set for the server's profile with `appstore-connect-mcp ui`) instead of working \
+around it with `api_request`.";
 
 // ---------------------------------------------------------------------------------------
 // prepare_release
@@ -157,7 +158,7 @@ Do not submit without a clear yes.
 `create_review_submission_item` with the App Store version, then \
 `update_review_submission` with submitted: true. If an open draft submission already \
 exists (see `release_status`), add the item to it instead of creating a new one. These \
-tools are destructive-level: the server must run with `--allow-destructive`. Finally call \
+tools are destructive-level: the server needs destructive access. Finally call \
 `release_status` again and report the review state."
     )
 }
@@ -223,8 +224,8 @@ it answers.
 5. Approval: ask the user to approve, edit or reject every draft individually. Never post a \
 response the user has not approved in its final wording.
 6. Posting (only approved texts): `create_customer_review_response` with the review ID and \
-the approved text. It is destructive-level (the response is public): the server must run \
-with `--allow-destructive`. A review has at most one response; replacing or removing one \
+the approved text. It is destructive-level (the response is public): the server needs \
+destructive access. A review has at most one response; replacing or removing one \
 (`delete_customer_review_response`) also needs the user's explicit approval.
 7. Report what was posted and what is left.
 
@@ -286,8 +287,8 @@ fn render_testflight_distribution(args: &BTreeMap<String, String>) -> String {
 
 {DYNAMIC_NOTE} Toolsets used here: apps, builds, testflight and versions-review.
 
-Access levels: reading is always allowed; steps marked (write) need `--allow-write`; steps \
-marked (destructive) need `--allow-destructive`. Before any write or destructive step, tell \
+Access levels: reading is always allowed; steps marked (write) need write access; steps \
+marked (destructive) need destructive access. Before any write or destructive step, tell \
 the user what will change and get a yes; destructive steps notify testers or Apple and \
 cannot be taken back.
 

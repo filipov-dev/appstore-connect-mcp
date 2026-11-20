@@ -340,13 +340,17 @@ async fn custom_tools_are_registered_from_start() {
     expected.push("main_app".to_owned());
     expected.sort();
     assert_eq!(names(&server), expected);
-    // Выше уровня доступа — не зарегистрирован, вызов объясняет, какой флаг нужен.
+    // Выше уровня доступа — не зарегистрирован, вызов объясняет, какой уровень нужен.
     let result = server
         .call("qa_group", args(json!({"body": {}})))
         .await
         .unwrap();
     assert_eq!(result.is_error, Some(true));
-    assert!(text(&result).contains("--allow-write"), "{}", text(&result));
+    assert!(
+        text(&result).contains("`write` access"),
+        "{}",
+        text(&result)
+    );
 
     for tool in ["enable_toolset", "disable_toolset"] {
         let result = server

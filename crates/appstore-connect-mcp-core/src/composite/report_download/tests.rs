@@ -543,7 +543,7 @@ async fn analytics_without_request_explains_how_to_create_one() {
     .await
     .unwrap_err();
     assert!(err.message.contains(CREATE_REQUEST_TOOL), "{}", err.message);
-    assert!(err.message.contains("--allow-write"), "{}", err.message);
+    assert!(err.message.contains("`write` access"), "{}", err.message);
     assert!(err.message.contains("1-2 days"), "{}", err.message);
     assert!(err.message.contains(APP), "{}", err.message);
     // Только чтение: ни одного POST.

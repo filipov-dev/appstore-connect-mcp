@@ -117,8 +117,8 @@ previews), locales that exist in App Store Connect but have no file. With the de
 `dry_run: true` nothing is sent; review the diff and call again with `dry_run: false` to \
 create new localizations and update only the changed fields. A field or section left out of a \
 file is not touched; `null` or an empty string clears the field. Locales without a file are \
-deleted only with `delete_missing_locales: true`, which needs a server started with \
-`--allow-destructive`. Field lengths (name and subtitle 30, keywords 100, promotionalText \
+deleted only with `delete_missing_locales: true`, which needs a server with `destructive` \
+access. Field lengths (name and subtitle 30, keywords 100, promotionalText \
 170, description and whatsNew 4000 characters) and URLs are checked first; with any problem \
 nothing is sent. The target version and app info come from `_meta.json`; pass `version_id` \
 or `app_info_id` to apply the files to another (or a non-editable) version or app info. \
@@ -1278,8 +1278,8 @@ async fn apply(ctx: &Context, args: Value) -> ToolResult {
     if delete_missing && !dry_run && !ctx.access.allows(AccessLevel::Destructive) {
         return Err(ToolError::new(
             "`delete_missing_locales` deletes localizations and needs the destructive access level, \
-             but this server runs with a lower one. Ask the user to restart the server with \
-             `--allow-destructive`, or call again without `delete_missing_locales`. Nothing was sent.",
+             but this server runs with a lower one. Ask the user to allow `destructive` access for \
+             the server's profile (`appstore-connect-mcp ui`), or call again without `delete_missing_locales`. Nothing was sent.",
         ));
     }
 

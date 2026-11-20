@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-appstore-connect-api = { version = "0.2.2", path = "../appstore-connect-api" }
+appstore-connect-api = { version = "0.3.0", path = "../appstore-connect-api" }
 base64 = "0.22.1"
 # Подпись (certificate_create) — на чистом Rust, без OpenSSL и C: сборка под musl.
 # Ключ RSA 2048 и CSR (PKCS#10) создаются локально; rsa 0.10 — та же линия RustCrypto

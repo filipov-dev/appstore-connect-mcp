@@ -676,8 +676,8 @@ async fn download_analytics(ctx: &Context, args: &Value, save_to: &str) -> ToolR
         return Err(ToolError::new(format!(
             "app {app_id} has {which}, so there is no analytics data to download. This tool \
              only reads and does not create requests. To start report generation, call \
-             {CREATE_REQUEST_TOOL} (needs write access: the server must run with \
-             --allow-write) with body {{\"data\": {{\"type\": \"analyticsReportRequests\", \
+             {CREATE_REQUEST_TOOL} (needs `write` access for the server's \
+             profile) with body {{\"data\": {{\"type\": \"analyticsReportRequests\", \
              \"attributes\": {{\"accessType\": \"ONGOING\"}}, \"relationships\": {{\"app\": \
              {{\"data\": {{\"type\": \"apps\", \"id\": \"{app_id}\"}}}}}}}}}}, ask the user \
              first. Apple then needs time, usually 1-2 days, to generate the first report \

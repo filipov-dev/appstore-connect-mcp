@@ -20,10 +20,10 @@ Linux-бинарник собран статически: ему не нужны
 Одна команда для Linux (x86_64, aarch64) и macOS, Homebrew не нужен:
 
 ```bash
-curl -fsSL https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/tarball/refs/heads/install | tar -xzO | sh
+curl -fsSL https://codeload.github.com/filipov-dev/appstore-connect-mcp/tar.gz/refs/heads/install | tar -xzO | sh
 ```
 
-Адрес — архив ветки `install` публичного репозитория: в ней лежит только `install.sh` со списком релизов (адреса архивов и их SHA-256), его обновляет релизный конвейер. `tar -xzO` печатает скрипт, `sh` выполняет.
+Адрес — архив ветки `install` копии репозитория на GitHub: в ней лежит только `install.sh` со списком релизов (адреса архивов и их SHA-256), его обновляет релизный конвейер. `tar -xzO` печатает скрипт, `sh` выполняет. Архивы релизов тоже лежат на GitHub. Прежний адрес `https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/tarball/refs/heads/install` работает и ставит те же архивы.
 
 Что делает скрипт:
 
@@ -38,10 +38,10 @@ curl -fsSL https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/ta
 
 ```bash
 # Конкретная версия
-curl -fsSL https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/tarball/refs/heads/install | tar -xzO | sh -s -- --version v0.1.0
+curl -fsSL https://codeload.github.com/filipov-dev/appstore-connect-mcp/tar.gz/refs/heads/install | tar -xzO | sh -s -- --version v0.1.0
 
 # Другой каталог: бинарник попадёт в /opt/asc/bin
-curl -fsSL https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/tarball/refs/heads/install | tar -xzO | sh -s -- --prefix /opt/asc
+curl -fsSL https://codeload.github.com/filipov-dev/appstore-connect-mcp/tar.gz/refs/heads/install | tar -xzO | sh -s -- --prefix /opt/asc
 ```
 
 | Параметр | Что делает |
@@ -52,7 +52,7 @@ curl -fsSL https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/ta
 | `--force` | Переустановить, даже если эта версия уже стоит. |
 | `--list` | Показать доступные версии и выйти. |
 
-Нужны `sh`, `tar`, `curl` или `wget`, `sha256sum` или `shasum`. Чтобы прочитать скрипт перед запуском, сохраните его в файл: `curl -fsSL https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/tarball/refs/heads/install | tar -xzO > install.sh`.
+Нужны `sh`, `tar`, `curl` или `wget`, `sha256sum` или `shasum`. Чтобы прочитать скрипт перед запуском, сохраните его в файл: `curl -fsSL https://codeload.github.com/filipov-dev/appstore-connect-mcp/tar.gz/refs/heads/install | tar -xzO > install.sh`.
 
 ## Homebrew
 
@@ -77,7 +77,7 @@ brew uninstall filipov-dev/tap/appstore-connect-mcp
 
 ## Готовый архив
 
-Архивы и файл `SHA256SUMS` публикуются на [странице релизов](https://sourcecraft.dev/filipov-dev/appstore-connect-mcp/releases). Имя архива: `appstore-connect-mcp-<тег>-<платформа>.tar.gz`, например `appstore-connect-mcp-v0.1.0-linux-x86_64.tar.gz`. Внутри — каталог с бинарником `appstore-connect-mcp`, `README.md` и лицензиями. Архив для Windows — `.zip`, его установка описана в разделе [Windows](#windows).
+Архивы и файл `SHA256SUMS` публикуются на [странице релизов](https://github.com/filipov-dev/appstore-connect-mcp/releases). Имя архива: `appstore-connect-mcp-<тег>-<платформа>.tar.gz`, например `appstore-connect-mcp-v0.1.0-linux-x86_64.tar.gz`. Внутри — каталог с бинарником `appstore-connect-mcp`, `README.md` и лицензиями. Архив для Windows — `.zip`, его установка описана в разделе [Windows](#windows).
 
 Проверьте контрольную сумму (из каталога, куда скачаны архив и `SHA256SUMS`):
 
@@ -108,7 +108,7 @@ codesign -dv --verbose=2 /usr/local/bin/appstore-connect-mcp
 
 ## Windows
 
-Для Windows есть только архив `appstore-connect-mcp-<тег>-windows-x86_64.zip` на [странице релизов](https://sourcecraft.dev/filipov-dev/appstore-connect-mcp/releases): установочного скрипта, Homebrew и пакетов для менеджеров пакетов нет. Внутри — каталог с `appstore-connect-mcp.exe`, `README.md` и лицензиями. Бинарнику не нужен Visual C++ Redistributable и другие библиотеки. Ключи хранятся в Windows Credential Manager (общие учётные данные `<профиль>.dev.filipov.appstore-connect-mcp`).
+Для Windows есть только архив `appstore-connect-mcp-<тег>-windows-x86_64.zip` на [странице релизов](https://github.com/filipov-dev/appstore-connect-mcp/releases): установочного скрипта, Homebrew и пакетов для менеджеров пакетов нет. Внутри — каталог с `appstore-connect-mcp.exe`, `README.md` и лицензиями. Бинарнику не нужен Visual C++ Redistributable и другие библиотеки. Ключи хранятся в Windows Credential Manager (общие учётные данные `<профиль>.dev.filipov.appstore-connect-mcp`).
 
 Скачайте архив и `SHA256SUMS` в один каталог и выполните в PowerShell из него (тег замените на нужный):
 

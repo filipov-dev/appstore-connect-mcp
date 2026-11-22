@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "appstore-connect-api"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "base64 0.22.1",
  "insta",
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "appstore-connect-mcp"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "appstore-connect-api",
@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "appstore-connect-mcp-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "appstore-connect-api",
  "base64 0.22.1",

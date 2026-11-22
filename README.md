@@ -16,7 +16,7 @@ MCP-сервер и CLI для [App Store Connect API](https://developer.apple.c
 ### Установочный скрипт (Linux и macOS)
 
 ```bash
-curl -fsSL https://codeload.sourcecraft.tech/filipov-dev/appstore-connect-mcp/tarball/refs/heads/install | tar -xzO | sh
+curl -fsSL https://codeload.github.com/filipov-dev/appstore-connect-mcp/tar.gz/refs/heads/install | tar -xzO | sh
 ```
 
 Скрипт ставит последнюю версию в `~/.local/bin` без `sudo` и сверяет архив с `SHA256SUMS` релиза; повторный запуск обновляет бинарник.
@@ -28,7 +28,7 @@ brew tap filipov-dev/tap https://git.sourcecraft.dev/filipov-dev/homebrew-tap.gi
 brew install filipov-dev/tap/appstore-connect-mcp
 ```
 
-Готовые архивы — на [странице релизов](https://sourcecraft.dev/filipov-dev/appstore-connect-mcp/releases): macOS (универсальный, подписан и нотаризован), Linux x86_64 и aarch64 (статические, без зависимостей), Windows x86_64 (`.zip`, без зависимостей, не подписан: SmartScreen может предупредить о неизвестном издателе; установка в PowerShell — в [docs/install.md](docs/install.md#windows)). Параметры скрипта, проверка контрольных сумм, сборка из исходников, обновление и удаление — в [docs/install.md](docs/install.md).
+Готовые архивы — на [странице релизов на GitHub](https://github.com/filipov-dev/appstore-connect-mcp/releases) (код — в [SourceCraft](https://sourcecraft.dev/filipov-dev/appstore-connect-mcp) и в его копии на GitHub): macOS (универсальный, подписан и нотаризован), Linux x86_64 и aarch64 (статические, без зависимостей), Windows x86_64 (`.zip`, без зависимостей, не подписан: SmartScreen может предупредить о неизвестном издателе; установка в PowerShell — в [docs/install.md](docs/install.md#windows)). Параметры скрипта, проверка контрольных сумм, сборка из исходников, обновление и удаление — в [docs/install.md](docs/install.md).
 
 ## Быстрый старт
 

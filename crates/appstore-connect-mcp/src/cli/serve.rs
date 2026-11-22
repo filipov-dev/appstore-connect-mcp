@@ -325,8 +325,8 @@ fn resolve_access(
     )
     .map_err(|err| {
         anyhow!(
-            "{err}. The access of a profile is changed with `appstore-connect-mcp ui \
-                 --profile {profile}`; registrations made by older versions with access flags \
+            "{err}. The access of a profile is changed with `appstore-connect-mcp ui` \
+                 (profile `{profile}`); registrations made by older versions with access flags \
                  are updated by `appstore-connect-mcp connect`"
         )
     })
@@ -659,7 +659,7 @@ mod tests {
         let text = err.to_string();
         assert!(text.contains("profile allows only `read`"), "{text}");
         assert!(
-            text.contains("appstore-connect-mcp ui --profile default"),
+            text.contains("`appstore-connect-mcp ui` (profile `default`)"),
             "{text}"
         );
         let write = settings(true, false, &[]);

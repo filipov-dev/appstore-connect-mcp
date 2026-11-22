@@ -113,7 +113,7 @@ codesign -dv --verbose=2 /usr/local/bin/appstore-connect-mcp
 Скачайте архив и `SHA256SUMS` в один каталог и выполните в PowerShell из него (тег замените на нужный):
 
 ```powershell
-$tag = 'v0.3.0'
+$tag = 'v0.3.1'
 $zip = "appstore-connect-mcp-$tag-windows-x86_64.zip"
 
 # Контрольная сумма: значение должно совпасть со строкой windows-x86_64 в SHA256SUMS

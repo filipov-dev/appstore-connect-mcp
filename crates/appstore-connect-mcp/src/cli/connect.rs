@@ -340,7 +340,7 @@ fn change_access(
         Ok(_) => {}
         Err(err) => ui.say(&format!(
             "The access was not changed: {err}. The profile keeps `{}` access; change it later \
-             with `appstore-connect-mcp ui --profile {profile}`.",
+             with `appstore-connect-mcp ui` (profile `{profile}`).",
             before.summary()
         )),
     }
@@ -834,7 +834,7 @@ mod tests {
         let text = fx.ui.text();
         assert!(text.contains("The access was not changed"), "{text}");
         assert!(
-            text.contains("appstore-connect-mcp ui --profile default"),
+            text.contains("`appstore-connect-mcp ui` (profile `default`)"),
             "{text}"
         );
         assert!(fx.codex_config().is_some());

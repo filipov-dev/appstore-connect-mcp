@@ -27,6 +27,10 @@ v0.3.2 appstore-connect-mcp-v0.3.2-macos-universal.tar.gz 74efb6d3163b7952ee54fd
 v0.3.2 appstore-connect-mcp-v0.3.2-linux-x86_64.tar.gz 0bff3785f05ea7c0935ae510e87d996663d12103e840d34f2ce7aa4fc9eda2be https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.2/appstore-connect-mcp-v0.3.2-linux-x86_64.tar.gz
 v0.3.2 appstore-connect-mcp-v0.3.2-linux-aarch64.tar.gz d94481f92a20ff6e68e776c701e611499d51cd48b103d57570519ca2cf4b8039 https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.2/appstore-connect-mcp-v0.3.2-linux-aarch64.tar.gz
 v0.3.2 SHA256SUMS - https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.2/SHA256SUMS
+v0.1.0 appstore-connect-mcp-v0.1.0-macos-universal.tar.gz 9db3ba42e3475b9a76a93b079cd756149b2fa7daddb95b4791c9006aeeb414fa https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.1.0/appstore-connect-mcp-v0.1.0-macos-universal.tar.gz
+v0.1.0 appstore-connect-mcp-v0.1.0-linux-x86_64.tar.gz eec162ff32242e0f06a555f50ec5c755017d953bfeaa7142a93fd8b247e758b4 https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.1.0/appstore-connect-mcp-v0.1.0-linux-x86_64.tar.gz
+v0.1.0 appstore-connect-mcp-v0.1.0-linux-aarch64.tar.gz 24fa744437ab7bff4dfee483fa7bffdfb4c3d851b103687eceb0b894c8465d07 https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.1.0/appstore-connect-mcp-v0.1.0-linux-aarch64.tar.gz
+v0.1.0 SHA256SUMS - https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.1.0/SHA256SUMS
 '
 # @@RELEASES_END@@
 

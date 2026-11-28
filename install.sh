@@ -23,6 +23,10 @@ BIN_NAME="appstore-connect-mcp"
 # release first. Filled in by the release pipeline; keep the markers.
 # @@RELEASES_BEGIN@@
 RELEASES='
+v0.3.3 appstore-connect-mcp-v0.3.3-macos-universal.tar.gz f3a1416498af039c3d1fee8f1b00a5636ffe7096baa83ed99b93f183b41d1208 https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.3/appstore-connect-mcp-v0.3.3-macos-universal.tar.gz
+v0.3.3 appstore-connect-mcp-v0.3.3-linux-x86_64.tar.gz 3475b9b27d83c693caf1e61e01f2fb9bcc2a930b10125e102d5bd6bd0e18d2ae https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.3/appstore-connect-mcp-v0.3.3-linux-x86_64.tar.gz
+v0.3.3 appstore-connect-mcp-v0.3.3-linux-aarch64.tar.gz d6dbd23c95b77f491223dcc2e8267891bcf852a158a875a9ced20d739b630be4 https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.3/appstore-connect-mcp-v0.3.3-linux-aarch64.tar.gz
+v0.3.3 SHA256SUMS - https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.3/SHA256SUMS
 v0.3.2 appstore-connect-mcp-v0.3.2-macos-universal.tar.gz 74efb6d3163b7952ee54fd67950b6e44904d9c75304f26c3fba27b98ec4ceaa6 https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.2/appstore-connect-mcp-v0.3.2-macos-universal.tar.gz
 v0.3.2 appstore-connect-mcp-v0.3.2-linux-x86_64.tar.gz 0bff3785f05ea7c0935ae510e87d996663d12103e840d34f2ce7aa4fc9eda2be https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.2/appstore-connect-mcp-v0.3.2-linux-x86_64.tar.gz
 v0.3.2 appstore-connect-mcp-v0.3.2-linux-aarch64.tar.gz d94481f92a20ff6e68e776c701e611499d51cd48b103d57570519ca2cf4b8039 https://github.com/filipov-dev/appstore-connect-mcp/releases/download/v0.3.2/appstore-connect-mcp-v0.3.2-linux-aarch64.tar.gz

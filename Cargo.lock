@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "appstore-connect-api"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "base64 0.22.1",
  "insta",
@@ -177,7 +177,7 @@ dependencies = [
 
 [[package]]
 name = "appstore-connect-mcp"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "anyhow",
  "appstore-connect-api",
@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "appstore-connect-mcp-core"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "appstore-connect-api",
  "base64 0.22.1",
@@ -2363,8 +2363,8 @@ dependencies = [
 
 [[package]]
 name = "mcp-kit"
-version = "0.1.0"
-source = "git+https://git.sourcecraft.dev/filipov-dev/mcp-kit.git?tag=v0.1.0#47984e0692a8e83fe5368623a16dd1c2da904ebe"
+version = "0.2.1"
+source = "git+https://git.sourcecraft.dev/filipov-dev/mcp-kit.git?tag=v0.2.1#efdc2922b27ae4ba2218a43f181012bc2c4115d8"
 dependencies = [
  "clap",
  "dirs",
@@ -2372,6 +2372,7 @@ dependencies = [
  "ratatui",
  "rmcp",
  "robius-authentication",
+ "security-framework 3.7.0",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
